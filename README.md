@@ -387,4 +387,4 @@ MIT © Mudiaga Arharhire
 ## 🙏 Acknowledgments
 
 - Built with [SvelteKit](https://svelte.dev/docs/kit)
-- Inspired by [LiveStore](https://livestore.dev/) and other prior slocal-first libraries
+- Inspired by [LiveStore](https://livestore.dev/) and other prior sync and local-first libraries
