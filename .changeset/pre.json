@@ -5,6 +5,8 @@
     "sveltekit-sync": "0.0.1"
   },
   "changesets": [
-    "cute-rabbits-refuse"
+    "cute-rabbits-refuse",
+    "humble-pans-like",
+    "wicked-windows-hang"
   ]
 }
