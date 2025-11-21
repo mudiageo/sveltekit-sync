@@ -36,17 +36,40 @@ npm install sveltekit-sync # or your favorite package manager
 // src/lib/server/database/schema.ts
 import { pgTable, text, boolean, timestamp, integer, uuid } from 'drizzle-orm/pg-core';
 
+// All synced tables must include these columns
+export const syncMetadata = {
+  _version: integer('_version').notNull().default(1),
+  _updatedAt: timestamp('_updated_at').notNull().defaultNow(),
+  _clientId: text('_client_id'),
+  _isDeleted: boolean('_is_deleted').default(false)
+};
+
 export const todos = pgTable('todos', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id').notNull(),
   text: text('text').notNull(),
   completed: boolean('completed').default(false),
-  
-  // Required sync metadata
-  _version: integer('_version').notNull().default(1),
-  _updatedAt: timestamp('_updated_at').notNull().defaultNow(),
-  _clientId: text('_client_id'),
-  _isDeleted: boolean('_is_deleted').default(false)
+  ...syncMetadata
+});
+
+// Sync log table - tracks all changes for efficient delta sync
+export const syncLog = pgTable('sync_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tableName: text('table_name').notNull(),
+  recordId: text('record_id').notNull(),
+  operation: text('operation').notNull(), // 'insert', 'update', 'delete'
+  data: jsonb('data'),
+  timestamp: timestamp('timestamp').notNull().defaultNow(),
+  clientId: text('client_id'),
+  userId: text('user_id').notNull()
+});
+
+// Client state table - track last sync for each client
+export const clientState = pgTable('client_state', {
+  clientId: text('client_id').primaryKey(),
+  userId: text('user_id').notNull(),
+  lastSync: timestamp('last_sync').notNull().defaultNow(),
+  lastActive: timestamp('last_active').notNull().defaultNow()
 });
 ```
 
@@ -108,7 +131,10 @@ const adapter = new IndexedDBAdapter('myapp-db', 1);
 
 export const syncEngine = new SyncEngine({
   local: { db: null, adapter },
-  remote: { push: pushChanges, pull: pullChanges },
+  remote: { 
+    push: data => pushChanges(data),
+    pull: (lastSync: number, clientId: string) => pullChanges({ lastSync, clientId }) 
+  },
   syncInterval: 30000, // Sync every 30 seconds
   conflictResolution: 'last-write-wins'
 });
