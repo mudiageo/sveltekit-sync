@@ -20,7 +20,9 @@
 		"db:studio": "drizzle-kit studio",
 		"changeset": "changeset",
 		"version": "changeset version",
-		"release": "pnpm prepack && changeset publish"
+		"release": "pnpm prepack && changeset publish",
+		"lint": "eslint .",
+		"oxlint": "oxlint ."
 	},
 	"files": [
 		"dist",
@@ -43,6 +45,8 @@
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.29.7",
+		"@eslint/compat": "^1.4.0",
+		"@eslint/js": "^9.38.0",
 		"@sveltejs/adapter-auto": "^7.0.0",
 		"@sveltejs/kit": "^2.47.1",
 		"@sveltejs/package": "^2.5.4",
@@ -51,11 +55,16 @@
 		"@vitest/browser-playwright": "^4.0.5",
 		"drizzle-kit": "^0.31.5",
 		"drizzle-orm": "^0.44.6",
+		"eslint": "^9.38.0",
+		"eslint-plugin-svelte": "^3.12.4",
+		"globals": "^16.4.0",
+		"oxlint": "^1.29.0",
 		"playwright": "^1.56.1",
 		"publint": "^0.3.14",
 		"svelte": "^5.41.0",
 		"svelte-check": "^4.3.3",
 		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.46.1",
 		"vite": "^7.1.10",
 		"vitest": "^4.0.5",
 		"vitest-browser-svelte": "^2.0.1"
