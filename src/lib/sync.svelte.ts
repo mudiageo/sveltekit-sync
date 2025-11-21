@@ -484,9 +484,15 @@ export class CollectionStore<T extends Record<string, any>> {
   async create(data: Omit<T, 'id'>): Promise<T> {
     try {
       this.error = null;
-      const record = await this.engine.create(this.tableName, data);
-      // Force reactive update by creating new array
-      this.data = [...this.data, record];
+      const id = data.id || crypto.randomUUID()
+      const tempRecord = { ...data, id };
+      this.data.push(tempRecord);
+      
+      const record = await this.engine.create(this.tableName, tempRecord);
+
+      const index = this.data.findIndex(item => item.id === id);
+      if (index !== -1) this.data[index] = record;
+      
       return record;
     } catch (error) {
       this.error = error as Error;
@@ -497,16 +503,15 @@ export class CollectionStore<T extends Record<string, any>> {
   async update(id: string, data: Partial<T>): Promise<T> {
     try {
       this.error = null;
-      const record = await this.engine.update(this.tableName, id, data);
-      // Force reactive update
       const index = this.data.findIndex(item => item.id === id);
-      if (index !== -1) {
-        this.data = [
-          ...this.data.slice(0, index),
-          record,
-          ...this.data.slice(index + 1)
-        ];
-      }
+      if (index === -1) throw new Error(`Record with id ${id} not found`);
+      
+      const updatedRecord = { ...this.data[index], ...data };
+      this.data[index] = updatedRecord; // Optimistic update
+      
+      const record = await this.engine.update(this.tableName, id, data);
+      this.data[index] = record;
+    
       return record;
     } catch (error) {
       this.error = error as Error;
@@ -517,9 +522,14 @@ export class CollectionStore<T extends Record<string, any>> {
   async delete(id: string): Promise<void> {
     try {
       this.error = null;
+      const index = this.data.findIndex(item => item.id === id);
+      if (index === -1) throw new Error(`Record with id ${id} not found`);
+      
+      // Optimistic delete
+      this.data.splice(index, 1);
+      
       await this.engine.delete(this.tableName, id);
-      // Force reactive update
-      this.data = this.data.filter(item => item.id !== id);
+  
     } catch (error) {
       this.error = error as Error;
       throw error;
