@@ -1,6 +1,6 @@
 # 🔄 SvelteKit Sync
 
-**A production-ready, local-first sync engine for SvelteKit with optimistic updates, real-time synchronization, and support for any database.**
+**An experimental, local-first sync engine for SvelteKit with optimistic updates, real-time synchronization, and support for any database.**
 
 [![npm version](https://badge.fury.io/js/sveltekit-sync.svg)](https://www.npmjs.com/package/sveltekit-sync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
