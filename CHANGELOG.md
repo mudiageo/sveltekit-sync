@@ -1,10 +1,10 @@
 # @sveltekit-sync/core
 
-## 0.1.0
+## 0.1.0-alpha.0
 
 ### Minor Changes
 
-- Initial experimental release
+- Initial test experiment release
 - Basic sync functionality
 - IndexedDB adapter
 - Drizzle ORM support

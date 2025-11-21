@@ -1,0 +1,10 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "sveltekit-sync": "0.0.1"
+  },
+  "changesets": [
+    "cute-rabbits-refuse"
+  ]
+}
