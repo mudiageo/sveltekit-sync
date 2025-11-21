@@ -1,3 +1,52 @@
+import type { Conflict, SyncConfig, SyncOperation, SyncStatus } from './types.js';
+
+// ============================================================================
+// MULTI-TAB SYNC COORDINATOR
+// ============================================================================
+
+class MultiTabCoordinator {
+  private channel: BroadcastChannel;
+  private listeners: Map<string, Set<(data: any) => void>> = new Map();
+
+  constructor(channelName: string) {
+    this.channel = new BroadcastChannel(channelName);
+    this.channel.onmessage = (event) => {
+      const { type, payload } = event.data;
+      const handlers = this.listeners.get(type);
+      if (handlers) {
+        handlers.forEach(handler => handler(payload));
+      }
+    };
+  }
+
+  broadcast(type: string, payload: any): void {
+    this.channel.postMessage({ type, payload });
+  }
+
+  on(type: string, handler: (data: any) => void): () => void {
+    if (!this.listeners.has(type)) {
+      this.listeners.set(type, new Set());
+    }
+    this.listeners.get(type)!.add(handler);
+
+    // Return unsubscribe function
+    return () => {
+      const handlers = this.listeners.get(type);
+      if (handlers) {
+        handlers.delete(handler);
+      }
+    };
+  }
+
+  close(): void {
+    this.channel.close();
+  }
+}
+
+// ============================================================================
+// SYNC ENGINE CORE - ENHANCED
+// ============================================================================
+
 export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
   private config: Required<SyncConfig<TLocalDB, TRemoteDB>>;
   private syncTimer: number | null = null;
@@ -8,43 +57,66 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
   private lastSync = $state<number>(0);
   private clientId = $state<string>('');
   private isInitialized = $state(false);
+  private multiTab: MultiTabCoordinator;
+  private collections: Map<string, CollectionStore<any>> = new Map();
 
   constructor(config: SyncConfig<TLocalDB, TRemoteDB>) {
     this.config = {
-      syncInterval: 30000, // 30 seconds default
+      syncInterval: 30000,
       batchSize: 50,
       conflictResolution: 'last-write-wins',
       retryAttempts: 3,
       retryDelay: 1000,
-      onSync: () => {},
-      onConflict: () => {},
-      onError: () => {},
+      onSync: () => { },
+      onConflict: () => { },
+      onError: () => { },
       ...config
     };
+
+    this.multiTab = new MultiTabCoordinator('sveltekit-sync');
+    this.setupMultiTabSync();
   }
 
-  // ============================================================================
-  // INITIALIZATION
-  // ============================================================================
+  private setupMultiTabSync(): void {
+    // Listen for changes from other tabs
+    this.multiTab.on('data-changed', async ({ table, operation, data }) => {
+      const collection = this.collections.get(table);
+      if (collection) {
+        await collection.reload();
+      }
+    });
+
+    // Listen for sync events from other tabs
+    this.multiTab.on('sync-complete', async () => {
+      // Reload all collections when another tab syncs
+      for (const collection of this.collections.values()) {
+        await collection.reload();
+      }
+    });
+  }
 
   async init(): Promise<void> {
-
     if (this.isInitialized) {
       console.warn('SyncEngine already initialized');
       return;
     }
 
     try {
-      // Load client ID and last sync timestamp
       this.clientId = await this.config.local.adapter.getClientId();
       this.lastSync = await this.config.local.adapter.getLastSync();
-      
-      // Load pending operations
       this.pendingOps = await this.config.local.adapter.getQueue();
-      
+
+      // Check if this is the first time initializing
+      const hasInitialData = await this.config.local.adapter.isInitialized();
+
+      if (!hasInitialData) {
+        // First initialization - pull initial data
+        await this.pullInitialData();
+        await this.config.local.adapter.setInitialized(true);
+      }
+
       this.isInitialized = true;
-      
-      // Start auto-sync if configured
+
       if (this.config.syncInterval > 0) {
         this.startAutoSync();
       }
@@ -53,26 +125,57 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
       throw new Error(`Failed to initialize sync engine: ${error}`);
     }
   }
-private ensureInitialized(): void {
+
+  private async pullInitialData(): Promise<void> {
+    try {
+      // Pull all data from server (lastSync = 0 means "get everything")
+      const operations = await this.config.remote.pull(0, this.clientId);
+
+      // Apply operations to local DB
+      for (const op of operations) {
+        try {
+          switch (op.operation) {
+            case 'insert':
+            case 'update':
+              await this.config.local.adapter.update(op.table, op.data.id, op.data);
+              break;
+            case 'delete':
+              await this.config.local.adapter.delete(op.table, op.data.id);
+              break;
+          }
+        } catch (error) {
+          console.error('Failed to apply initial operation:', error);
+        }
+      }
+
+      // Update last sync timestamp
+      if (operations.length > 0) {
+        const maxTimestamp = Math.max(...operations.map((op: SyncOperation) => op.timestamp));
+        await this.config.local.adapter.setLastSync(maxTimestamp);
+        this.lastSync = maxTimestamp;
+      }
+    } catch (error) {
+      console.error('Failed to pull initial data:', error);
+      throw error;
+    }
+  }
+
+  private ensureInitialized(): void {
     if (!this.isInitialized) {
       throw new Error(
-        'SyncEngine not initialized. Call syncEngine.init() before using collections. ' +
-        'Make sure to initialize in your root layout or app initialization.'
+        'SyncEngine not initialized. Call syncEngine.init() before using collections.'
       );
     }
   }
-  
-
-  // CRUD OPERATIONS WITH OPTIMISTIC UPDATES (Internal)
 
   async create(table: string, data: any): Promise<any> {
+    this.ensureInitialized();
+
     const id = data.id || crypto.randomUUID();
     const record = { ...data, id, _version: 1, _updatedAt: new Date() };
-    
-    // Optimistic update - apply immediately to local DB
+
     await this.config.local.adapter.insert(table, record);
-    
-    // Queue sync operation
+
     const operation: SyncOperation = {
       id: crypto.randomUUID(),
       table,
@@ -83,28 +186,29 @@ private ensureInitialized(): void {
       version: 1,
       status: 'pending'
     };
-    
+
     await this.config.local.adapter.addToQueue(operation);
     this.pendingOps.push(operation);
-    
-    // Trigger sync if not auto-syncing
+
+    // Notify other tabs
+    this.multiTab.broadcast('data-changed', { table, operation: 'insert', data: record });
+
     if (this.config.syncInterval === 0) {
       this.sync();
     }
-    
+
     return record;
   }
 
   async update(table: string, id: string, data: any): Promise<any> {
-    // Get current version
+    this.ensureInitialized();
+
     const current = await this.config.local.adapter.findOne(table, id);
     const version = (current?._version || 0) + 1;
     const record = { ...data, id, _version: version, _updatedAt: new Date() };
-    
-    // Optimistic update
+
     await this.config.local.adapter.update(table, id, record);
-    
-    // Queue sync operation
+
     const operation: SyncOperation = {
       id: crypto.randomUUID(),
       table,
@@ -115,22 +219,25 @@ private ensureInitialized(): void {
       version,
       status: 'pending'
     };
-    
+
     await this.config.local.adapter.addToQueue(operation);
     this.pendingOps.push(operation);
-    
+
+    // Notify other tabs
+    this.multiTab.broadcast('data-changed', { table, operation: 'update', data: record });
+
     if (this.config.syncInterval === 0) {
       this.sync();
     }
-    
+
     return record;
   }
 
   async delete(table: string, id: string): Promise<void> {
-    // Optimistic delete
+    this.ensureInitialized();
+
     await this.config.local.adapter.delete(table, id);
-    
-    // Queue sync operation
+
     const operation: SyncOperation = {
       id: crypto.randomUUID(),
       table,
@@ -141,47 +248,46 @@ private ensureInitialized(): void {
       version: 1,
       status: 'pending'
     };
-    
+
     await this.config.local.adapter.addToQueue(operation);
     this.pendingOps.push(operation);
-    
+
+    // Notify other tabs
+    this.multiTab.broadcast('data-changed', { table, operation: 'delete', data: { id } });
+
     if (this.config.syncInterval === 0) {
       this.sync();
     }
   }
 
   async find(table: string, query?: any): Promise<any[]> {
+    this.ensureInitialized();
     return this.config.local.adapter.find(table, query);
   }
 
   async findOne(table: string, id: string): Promise<any | null> {
+    this.ensureInitialized();
     return this.config.local.adapter.findOne(table, id);
   }
 
-  // ============================================================================
-  // SYNC OPERATIONS
-  // ============================================================================
-
   async sync(force = false): Promise<void> {
     if (this.isSyncing && !force) return;
-    
+
     this.isSyncing = true;
     this.syncStatus = 'syncing';
     this.config.onSync('syncing');
-    
+
     try {
-      // Step 1: Push local changes
       await this.push();
-      
-      console.log(this.conflicts)
-      // Step 2: Pull remote changes
       await this.pull();
-      console.log(this.conflicts)
-      // Step 3: Handle conflicts
+
       if (this.conflicts.length > 0) {
         await this.resolveConflicts();
       }
-      
+
+      // Notify other tabs that sync completed
+      this.multiTab.broadcast('sync-complete', {});
+
       this.syncStatus = 'idle';
       this.config.onSync('idle');
     } catch (error) {
@@ -196,32 +302,28 @@ private ensureInitialized(): void {
 
   private async push(): Promise<void> {
     const queue = await this.config.local.adapter.getQueue();
-    const pending = queue.filter(op => op.status === 'pending');
-    
+    const pending = queue.filter((op: SyncOperation) => op.status === 'pending');
+
     if (pending.length === 0) return;
-    
-    // Process in batches
+
     for (let i = 0; i < pending.length; i += this.config.batchSize) {
       const batch = pending.slice(i, i + this.config.batchSize);
-      
+
       try {
         const result = await this.config.remote.push(batch);
-        
-        // Remove successfully synced operations
+
         if (result.synced.length > 0) {
           await this.config.local.adapter.removeFromQueue(result.synced);
-          this.pendingOps = this.pendingOps.filter(op => !result.synced.includes(op.id));
+          this.pendingOps = this.pendingOps.filter((op: SyncOperation) => !result.synced.includes(op.id));
         }
-        
-        // Handle conflicts
+
         if (result.conflicts.length > 0) {
           this.conflicts.push(...result.conflicts);
           this.syncStatus = 'conflict';
           this.config.onSync('conflict');
-          result.conflicts.forEach(c => this.config.onConflict(c));
+          result.conflicts.forEach((c: Conflict) => this.config.onConflict(c));
         }
-        
-        // Update error statuses
+
         for (const error of result.errors) {
           await this.config.local.adapter.updateQueueStatus(error.id, 'error', error.error);
         }
@@ -234,12 +336,11 @@ private ensureInitialized(): void {
 
   private async pull(): Promise<void> {
     const lastSync = await this.config.local.adapter.getLastSync();
-    const operations = await this.config.remote.pull({lastSync, clientId: this.clientId});
-    
+    const operations = await this.config.remote.pull(lastSync, this.clientId);
+
     for (const op of operations) {
-      // Skip operations from this client
       if (op.clientId === this.clientId) continue;
-      
+
       try {
         switch (op.operation) {
           case 'insert':
@@ -256,9 +357,8 @@ private ensureInitialized(): void {
         console.error('Failed to apply remote operation:', error);
       }
     }
-    
-    // Update last sync timestamp
-    const newLastSync = Math.max(...operations.map(op => op.timestamp), lastSync);
+
+    const newLastSync = Math.max(...operations.map((op: SyncOperation) => op.timestamp), lastSync);
     await this.config.local.adapter.setLastSync(newLastSync);
     this.lastSync = newLastSync;
   }
@@ -266,19 +366,19 @@ private ensureInitialized(): void {
   private async resolveConflicts(): Promise<void> {
     for (const conflict of this.conflicts) {
       let resolved: SyncOperation | null = null;
-      
+
       switch (this.config.conflictResolution) {
         case 'client-wins':
           resolved = conflict.operation;
           break;
-          
+
         case 'server-wins':
           resolved = {
             ...conflict.operation,
             data: conflict.serverData
           };
           break;
-          
+
         case 'last-write-wins':
           const serverTime = conflict.serverData._updatedAt || 0;
           const clientTime = conflict.clientData._updatedAt || 0;
@@ -286,33 +386,26 @@ private ensureInitialized(): void {
             ? { ...conflict.operation, data: conflict.serverData }
             : conflict.operation;
           break;
-          
+
         case 'manual':
           if (this.config.remote.resolve) {
             resolved = await this.config.remote.resolve(conflict);
           }
           break;
       }
-      
+
       if (resolved) {
-        // Apply resolution
         await this.config.local.adapter.update(
           resolved.table,
           resolved.data.id,
           resolved.data
         );
-        
-        // Remove from conflicts and queue
         await this.config.local.adapter.removeFromQueue([conflict.operation.id]);
       }
     }
-    
+
     this.conflicts = [];
   }
-
-  // ============================================================================
-  // AUTO-SYNC
-  // ============================================================================
 
   private startAutoSync(): void {
     this.stopAutoSync();
@@ -328,10 +421,6 @@ private ensureInitialized(): void {
     }
   }
 
-  // ============================================================================
-  // STATE ACCESS (Svelte 5 Runes)
-  // ============================================================================
-
   get state() {
     return {
       isSyncing: this.isSyncing,
@@ -343,17 +432,13 @@ private ensureInitialized(): void {
     };
   }
 
-  // ============================================================================
-  // COLLECTION STORE FACTORY
-  // ============================================================================
-
   collection<T extends Record<string, any>>(tableName: string) {
-    return new CollectionStore<T>(this, tableName);
+    if (!this.collections.has(tableName)) {
+      const collection = new CollectionStore<T>(this, tableName);
+      this.collections.set(tableName, collection);
+    }
+    return this.collections.get(tableName)! as CollectionStore<T>;
   }
-
-  // ============================================================================
-  // MANUAL CONTROLS
-  // ============================================================================
 
   async forcePush(): Promise<void> {
     await this.push();
@@ -365,17 +450,22 @@ private ensureInitialized(): void {
 
   destroy(): void {
     this.stopAutoSync();
+    this.multiTab.close();
   }
 }
 
+// ============================================================================
 // ERGONOMIC COLLECTION STORE
+// ============================================================================
 
 export class CollectionStore<T extends Record<string, any>> {
   private engine: SyncEngine;
   private tableName: string;
-  private _data: T[] = $state([]);
-  private _isLoading = $state(false);
-  private _error = $state<Error | null>(null);
+
+  // Make these public and directly accessible for reactivity
+  data = $state<T[]>([]);
+  isLoading = $state(false);
+  error = $state<Error | null>(null);
   private _initialized = $state(false);
 
   constructor(engine: SyncEngine, tableName: string) {
@@ -383,108 +473,81 @@ export class CollectionStore<T extends Record<string, any>> {
     this.tableName = tableName;
   }
 
-  // ============================================================================
-  // REACTIVE STATE (Svelte 5 Runes)
-  // ============================================================================
-
-  get current(): T[] {
-    // Auto-load on first access
-    // if (!this._initialized && !this._isLoading) {
-    //   this.load();
-    // }
-    return this._data;
-  }
-  get data(): T[] {
-    // Auto-load on first access
-    // if (!this._initialized && !this._isLoading) {
-    //   this.load();
-    // }
-    return this._data;
-  }
-
-  get isLoading(): boolean {
-    return this._isLoading;
-  }
-
-  get error(): Error | null {
-    return this._error;
-  }
-
   get count(): number {
-    return this._data.length;
+    return this.data.length;
   }
 
   get isEmpty(): boolean {
-    return this._data.length === 0;
+    return this.data.length === 0;
   }
-
-  // ============================================================================
-  // CRUD OPERATIONS
-  // ============================================================================
 
   async create(data: Omit<T, 'id'>): Promise<T> {
     try {
-      this._error = null;
+      this.error = null;
       const record = await this.engine.create(this.tableName, data);
-      this._data.push(record);
+      // Force reactive update by creating new array
+      this.data = [...this.data, record];
       return record;
     } catch (error) {
-      this._error = error as Error;
+      this.error = error as Error;
       throw error;
     }
   }
 
   async update(id: string, data: Partial<T>): Promise<T> {
     try {
-      this._error = null;
+      this.error = null;
       const record = await this.engine.update(this.tableName, id, data);
-      const index = this._data.findIndex(item => item.id === id);
+      // Force reactive update
+      const index = this.data.findIndex(item => item.id === id);
       if (index !== -1) {
-        this._data[index] = record;
+        this.data = [
+          ...this.data.slice(0, index),
+          record,
+          ...this.data.slice(index + 1)
+        ];
       }
       return record;
     } catch (error) {
-      this._error = error as Error;
+      this.error = error as Error;
       throw error;
     }
   }
 
   async delete(id: string): Promise<void> {
     try {
-      this._error = null;
+      this.error = null;
       await this.engine.delete(this.tableName, id);
-      this._data = this._data.filter(item => item.id !== id);
+      // Force reactive update
+      this.data = this.data.filter(item => item.id !== id);
     } catch (error) {
-      this._error = error as Error;
+      this.error = error as Error;
       throw error;
     }
   }
 
   async findOne(id: string): Promise<T | null> {
     try {
-      this._error = null;
+      this.error = null;
       return await this.engine.findOne(this.tableName, id);
     } catch (error) {
-      this._error = error as Error;
+      this.error = error as Error;
       throw error;
     }
   }
 
-  // ============================================================================
-  // LOADING & QUERYING
-  // ============================================================================
-
   async load(query?: any): Promise<void> {
     try {
-      this._isLoading = true;
-      this._error = null;
-      this._data = await this.engine.find(this.tableName, query);
+      this.isLoading = true;
+      this.error = null;
+      this.data = await this.engine.find(this.tableName, query);
+      this._initialized = true;
     } catch (error) {
-      this._error = error as Error;
+      this.error = error as Error;
       console.error(`Error loading ${this.tableName}:`, error);
-      // throw error;
+      throw error;
     } finally {
-      this._isLoading = false;
+      this.isLoading = false;
     }
   }
 
@@ -492,29 +555,21 @@ export class CollectionStore<T extends Record<string, any>> {
     await this.load();
   }
 
-  // ============================================================================
-  // UTILITY METHODS
-  // ============================================================================
-
   find(predicate: (item: T) => boolean): T | undefined {
-    return this._data.find(predicate);
+    return this.data.find(predicate);
   }
 
   filter(predicate: (item: T) => boolean): T[] {
-    return this._data.filter(predicate);
+    return this.data.filter(predicate);
   }
 
   map<U>(mapper: (item: T) => U): U[] {
-    return this._data.map(mapper);
+    return this.data.map(mapper);
   }
 
   sort(compareFn: (a: T, b: T) => number): T[] {
-    return [...this._data].sort(compareFn);
+    return [...this.data].sort(compareFn);
   }
-
-  // ============================================================================
-  // BULK OPERATIONS
-  // ============================================================================
 
   async createMany(items: Omit<T, 'id'>[]): Promise<T[]> {
     const results: T[] = [];
@@ -538,11 +593,7 @@ export class CollectionStore<T extends Record<string, any>> {
     return results;
   }
 
-  // ============================================================================
-  // CLEAR LOCAL DATA
-  // ============================================================================
-
   clear(): void {
-    this._data = [];
+    this.data = [];
   }
 }

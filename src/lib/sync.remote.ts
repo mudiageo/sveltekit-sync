@@ -4,7 +4,7 @@ import { ServerSyncEngine } from '$lib/server/sync-engine';
 import { syncSchema } from './server/sync-schema';
 // import { getUser } from '$lib/server/auth'; // Your auth function
 function getUser(req) {
-  return { id: 'uswr1'}
+  return { id: 'uswr1' }
 }
 const syncEngine = new ServerSyncEngine(syncSchema);
 
@@ -36,6 +36,7 @@ export const pushChanges = command(
 
     // Process the sync operations
     const result = await syncEngine.push(operations, user.id);
+    await pullChanges({ lastSync: 0, clientId: operations[0].clientId }).refresh()
     return result;
   }
 );
@@ -72,7 +73,7 @@ export const getInitialData = query(
 
     // Get all data for specified tables efficiently
     const data: Record<string, any[]> = {};
-    
+
     for (const tableName of tables) {
       const operations = await syncEngine.pull(0, 'initial', user.id);
       data[tableName] = operations

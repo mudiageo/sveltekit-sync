@@ -1,7 +1,6 @@
 import { SyncEngine } from '$lib/sync.svelte';
 import { IndexedDBAdapter } from '$lib/adapters/indexeddb';
-import { IDBAdapter } from '$lib/adapters/idb';
-import { pushChanges, pullChanges, getInitialData, subscribeToSync } from '$lib/sync.remote';
+import { pushChanges, pullChanges } from '$lib/sync.remote';
 import { browser } from '$app/environment';
 
 const adapter = new IndexedDBAdapter('myapp-db', 1);
@@ -12,8 +11,8 @@ export const syncEngine = new SyncEngine({
     adapter
   },
   remote: {
-    push:data => pushChanges(data),
-    pull: data => pullChanges(data)
+    push: data => pushChanges(data),
+    pull: (lastSync: number, clientId: string) => pullChanges({ lastSync, clientId })
   },
   syncInterval: 30000,
   conflictResolution: 'last-write-wins',
@@ -31,96 +30,19 @@ export async function initDB() {
   }
 
   try {
-    await adapter.init({ 
+    await adapter.init({
       todos: 'id',
       notes: 'id',
       tasks: 'id'
-      
     });
 
+    // SyncEngine.init() now handles initial data pull automatically
     await syncEngine.init();
-    
+
     console.log('✅ Database initialized successfully');
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
     throw error;
-  }
-  
-  // Fast initial load - get all data at once
-  const clientId = await adapter.getClientId();
-  const initialData = await getInitialData({ tables: ['todos', 'notes'] });
-  
-  // Populate local DB
-  for (const [table, records] of Object.entries(initialData)) {
-    for (const record of records) {
-      await adapter.insert(table, record);
-    }
-  }
-  
-  // Set up real-time sync
-  if (browser) {
-    setupRealtimeSync(clientId);
-  }
-}
-
-// Real-time updates via SSE or WebSocket
-async function setupRealtimeSync(clientId: string) {
-  try {
-    const tables = ['todos', 'notes'];
-
-// Create query parameters string
-const queryParams = new URLSearchParams({
-    clientId: clientId,
-});
-
-// A better way to handle array of tables for clarity
-const url = `/api/subscribeToSync?clientId=${encodeURIComponent(clientId)}&` + 
-            tables.map(t => `tables=${encodeURIComponent(t)}`).join('&');
-
-const response = await fetch(url, {
-    method: 'GET', 
-    headers: {
-    'Content-Type': 'application/json' 
-}
-});
-
-    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-    
-    const decoder = new TextDecoder();
- 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      const text = decoder.decode(value);
-      const operations = JSON.parse(text);
-      
-      // Apply remote changes instantly
-      for (const op of operations) {
-        switch (op.operation) {
-          case 'insert':
-          case 'update':
-            await adapter.update(op.table, op.data.id, op.data);
-            break;
-          case 'delete':
-            await adapter.delete(op.table, op.data.id);
-            break;
-        }
-      }
-      
-      // Trigger collection stores to reload
-      await todosStore.reload();
-      await notesStore.reload();
-    }
-
-      
-    
-    
-       
-    
-  } catch (error) {
-    console.error('Realtime sync error:', error);
-    // Fall back to polling
   }
 }
 

@@ -33,21 +33,21 @@ export interface SyncConfig<TLocalDB = any, TRemoteDB = any> {
     db: TLocalDB;
     adapter: LocalAdapter<TLocalDB>;
   };
-  
+
   // Remote sync functions
   remote: {
     push: (ops: SyncOperation[]) => Promise<SyncResult>;
     pull: (lastSync: number, clientId: string) => Promise<SyncOperation[]>;
     resolve?: (conflict: Conflict) => Promise<SyncOperation>;
   };
-  
+
   // Sync settings
   syncInterval?: number; // Auto-sync interval in ms (0 to disable)
   batchSize?: number; // Number of operations to sync at once
   conflictResolution?: 'client-wins' | 'server-wins' | 'manual' | 'last-write-wins';
   retryAttempts?: number;
   retryDelay?: number;
-  
+
   // Callbacks
   onSync?: (status: SyncStatus) => void;
   onConflict?: (conflict: Conflict) => void;
@@ -62,7 +62,7 @@ export interface ServerAdapter<TDB = any> {
   delete(table: string, id: string): Promise<void>;
   findOne(table: string, id: string): Promise<any | null>;
   find(table: string, filter?: QueryFilter): Promise<any[]>;
-  
+
   // Sync-specific operations
   getChangesSince(
     table: string,
@@ -70,23 +70,23 @@ export interface ServerAdapter<TDB = any> {
     userId?: string,
     excludeClientId?: string
   ): Promise<SyncOperation[]>;
-  
+
   applyOperation(op: SyncOperation, userId?: string): Promise<void>;
-  
+
   // Batch operations for efficiency
   batchInsert(table: string, records: any[]): Promise<any[]>;
   batchUpdate(table: string, updates: Array<{ id: string; data: any }>): Promise<any[]>;
-  
+
   // Conflict detection
   checkConflict(table: string, id: string, expectedVersion: number): Promise<boolean>;
-  
+
   // Optional: Real-time support
   subscribe?(
     tables: string[],
     userId: string,
     callback: (ops: SyncOperation[]) => void
   ): Promise<() => void>;
-  
+
   // Transaction support
   transaction?<T>(fn: (adapter: ServerAdapter<TDB>) => Promise<T>): Promise<T>;
 }
@@ -106,22 +106,29 @@ export interface ClientAdapter<TDB = any> {
   delete(table: string, id: string): Promise<void>;
   find(table: string, query?: any): Promise<any[]>;
   findOne(table: string, id: string): Promise<any | null>;
-  
+
   // Sync queue
   addToQueue(op: SyncOperation): Promise<void>;
   getQueue(): Promise<SyncOperation[]>;
   removeFromQueue(ids: string[]): Promise<void>;
   updateQueueStatus(id: string, status: SyncOperation['status'], error?: string): Promise<void>;
-  
+
   // Metadata
   getLastSync(): Promise<number>;
   setLastSync(timestamp: number): Promise<void>;
   getClientId(): Promise<string>;
-  
+
   // Batch operations
   batchInsert?(table: string, records: any[]): Promise<any[]>;
   batchDelete?(table: string, ids: string[]): Promise<void>;
-  
+
   // Clear all data (for logout/reset)
   clear?(): Promise<void>;
+}
+
+// Local Adapter Interface (Enhanced Client Adapter with initialization tracking)
+export interface LocalAdapter<TDB = any> extends ClientAdapter<TDB> {
+  // Check if DB has been initialized with data
+  isInitialized(): Promise<boolean>;
+  setInitialized(value: boolean): Promise<void>;
 }
