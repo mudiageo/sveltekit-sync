@@ -1,12 +1,13 @@
-import type { SyncOperation, SyncResult, Conflict, ServerAdapter } from '../types';
+import type { SyncOperation, SyncResult, Conflict, ServerAdapter } from '../types.js';
 
-import type { SyncConfig } from './types';
+import type { SyncConfig } from './types.js';
+import type { SyncTableConfig } from './types.js';
 
 export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
   constructor(
     private adapter: TAdapter,
     private config: SyncConfig
-  ) {}
+  ) { }
 
   // PUSH: Apply client changes to server
   async push(operations: SyncOperation[], userId: string): Promise<SyncResult> {
@@ -152,8 +153,8 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
 
         // Apply transformations
         for (const change of changes) {
-          const data = tableConfig.transform 
-            ? tableConfig.transform(change.data) 
+          const data = tableConfig.transform
+            ? tableConfig.transform(change.data)
             : change.data;
 
           operations.push({
@@ -187,7 +188,8 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
 
     // For inserts, allow if user is creating their own record
     if (op.operation === 'insert') {
-      return op.data.userId === userId;
+      if (op.userId || op.data.userId) return op.userId === userId || op.data.userId === userId;
+      return true;
     }
 
     // For updates/deletes, check if record exists and belongs to user
