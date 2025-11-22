@@ -1,12 +1,17 @@
 import { query, command, getRequestEvent } from '$app/server';
 import * as v from 'valibot';
+import { db } from '$lib/server/db'
+import * as schema from '$lib/server/db/schema'
 import { ServerSyncEngine } from '$pkg/server/sync-engine';
+import { DrizzleAdapter } from '$pkg/adapters/drizzle';
 import { syncSchema } from './server/sync-schema';
 // import { getUser } from '$lib/server/auth'; // Your auth function
 function getUser(req) {
   return { id: 'uswr1' }
 }
-const syncEngine = new ServerSyncEngine(syncSchema);
+
+const adapter = new DrizzleAdapter({ db, schema})
+const syncEngine = new ServerSyncEngine(adapter, syncSchema);
 
 // Validation schemas
 const SyncOperationSchema = v.object({
