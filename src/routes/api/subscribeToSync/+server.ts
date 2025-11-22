@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { ServerSyncEngine } from '$lib/server/sync-engine';
+import { ServerSyncEngine } from '$pkg/server/sync-engine';
 import { syncSchema } from '$lib/server/sync-schema';
 function getUser(req) {
   return { id: 'uswr1'}

@@ -1,4 +1,5 @@
 import { eq, and, gt, sql, inArray } from 'drizzle-orm';
+import { pgTable, text, boolean, timestamp, integer, jsonb, uuid } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { ServerAdapter, SyncOperation, QueryFilter } from '../types.ts';
 
@@ -205,4 +206,39 @@ export class DrizzleServerAdapter implements ServerAdapter<PostgresJsDatabase> {
       return fn(txAdapter);
     });
   }
+}
+
+
+// All synced tables must include these columns
+export const syncMetadata = {
+  _version: integer('_version').notNull().default(1),
+  _updatedAt: timestamp('_updated_at').notNull().defaultNow(),
+  _clientId: text('_client_id'),
+  _isDeleted: boolean('_is_deleted').default(false)
+};
+
+// Sync log table - tracks all changes for efficient delta sync
+export const syncLog = pgTable('sync_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tableName: text('table_name').notNull(),
+  recordId: text('record_id').notNull(),
+  operation: text('operation').notNull(), // 'insert', 'update', 'delete'
+  data: jsonb('data'),
+  timestamp: timestamp('timestamp').notNull().defaultNow(),
+  clientId: text('client_id'),
+  userId: text('user_id').notNull()
+});
+
+// Client state table - track last sync for each client
+export const clientState = pgTable('client_state', {
+  clientId: text('client_id').primaryKey(),
+  userId: text('user_id').notNull(),
+  lastSync: timestamp('last_sync').notNull().defaultNow(),
+  lastActive: timestamp('last_active').notNull().defaultNow()
+});
+
+export const schema = {
+  syncMetadata,
+  syncLog,
+  clientState
 }

@@ -1,7 +1,8 @@
 // Client-side adapters
-export { IndexedDBAdapter } from './indexeddb.js';
+export * from './indexeddb.js';
+export * from './idb.js';
 
 // Server-side adapters
-export { DrizzleServerAdapter } from './drizzle.js';
+export * from './drizzle.js';
 
 export type { DrizzleAdapterConfig } from './drizzle.js';

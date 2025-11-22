@@ -1,9 +1,9 @@
-import { db } from './db';
-import * as schema from './db/schema';
+import { db } from '$lib/server/db';
+import * as schema from '$lib/server/db/schema';
 import { syncSchema } from './sync-schema';
-import { syncLog, clientState } from './db/schema';
+import { syncLog, clientState } from '$lib/server/db/schema';
 import { eq, and, gt, sql, inArray } from 'drizzle-orm';
-import type { SyncOperation, SyncResult, Conflict } from '$lib/sync-engine';
+import type { SyncOperation, SyncResult, Conflict } from '$pkg/sync-engine';
 
 export class ServerSyncEngine {
   private config = syncSchema;

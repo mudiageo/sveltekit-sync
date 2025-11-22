@@ -1,6 +1,6 @@
 import { query, command, getRequestEvent } from '$app/server';
 import * as v from 'valibot';
-import { ServerSyncEngine } from '$pkg/server/sync-engine';
+import { ServerSyncEngine } from '$lib/server/sync-engine';
 import { syncSchema } from './server/sync-schema';
 // import { getUser } from '$lib/server/auth'; // Your auth function
 function getUser(req) {
