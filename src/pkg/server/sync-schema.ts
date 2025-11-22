@@ -1,24 +1,4 @@
-import type { SQL } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
-
-export interface SyncTableConfig<T = any> {
-  table: string;
-  // Which columns to sync (omit sensitive data)
-  columns?: string[];
-  // Row-level security: filter what users can access
-  where?: (userId: string) => SQL;
-  // Transform data before sending to client
-  transform?: (row: T) => Partial<T>;
-  // Conflict resolution strategy
-  conflictResolution?: 'client-wins' | 'server-wins' | 'last-write-wins';
-}
-
-export interface SyncConfig {
-  tables: Record<string, SyncTableConfig>;
-  // Global settings
-  batchSize?: number;
-  enableRealtime?: boolean;
-}
+import type { SyncConfig } from '$pkg/types'
 
 // Define your sync schema - what gets synced and who can access it
 export const syncSchema: SyncConfig = {

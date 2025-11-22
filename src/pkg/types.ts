@@ -54,6 +54,13 @@ export interface SyncConfig<TLocalDB = any, TRemoteDB = any> {
   onError?: (error: Error) => void;
 }
 
+export interface ClientState {
+  clientId: string;
+  userId: string;
+  lastSync: Date;
+  lastActive: Date;
+}
+
 // Universal Server Adapter Interface
 export interface ServerAdapter<TDB = any> {
   // Core CRUD operations
@@ -79,7 +86,12 @@ export interface ServerAdapter<TDB = any> {
 
   // Conflict detection
   checkConflict(table: string, id: string, expectedVersion: number): Promise<boolean>;
-
+  
+  // Sync metadata operations
+  logSyncOperation(op: SyncOperation, userId: string): Promise<void>;
+  updateClientState(clientId: string, userId: string): Promise<void>;
+  getClientState(clientId: string): Promise<ClientState | null>;
+ 
   // Optional: Real-time support
   subscribe?(
     tables: string[],
