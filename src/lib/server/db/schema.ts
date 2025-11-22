@@ -1,11 +1,11 @@
 import { pgTable, text, boolean, timestamp, integer, jsonb, uuid } from 'drizzle-orm/pg-core';
 
-import { syncMetadata } from '$pkg/adapters/drizzle'
-export { syncLog, clientState } from '$pkg/adapters/drizzle'
+import { syncMetadata } from '../../../pkg/adapters/drizzle'
+export { syncLog, clientState } from '../../../pkg/adapters/drizzle'
 
 export const users = pgTable('users', {
-	id: uuid('id').primaryKey(),
-	age: integer('age')
+  id: uuid('id').primaryKey(),
+  age: integer('age')
 });
 
 

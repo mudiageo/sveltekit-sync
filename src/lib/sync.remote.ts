@@ -1,17 +1,11 @@
 import { query, command, getRequestEvent } from '$app/server';
 import * as v from 'valibot';
-import { db } from '$lib/server/db'
-import * as schema from '$lib/server/db/schema'
-import { ServerSyncEngine } from '$pkg/server/sync-engine';
-import { DrizzleAdapter } from '$pkg/adapters/drizzle';
-import { syncSchema } from './server/sync-schema';
+import { syncEngine } from '$lib/server/sync'
 // import { getUser } from '$lib/server/auth'; // Your auth function
 function getUser(req) {
   return { id: 'uswr1' }
 }
 
-const adapter = new DrizzleAdapter({ db, schema})
-const syncEngine = new ServerSyncEngine(adapter, syncSchema);
 
 // Validation schemas
 const SyncOperationSchema = v.object({
@@ -38,7 +32,7 @@ export const pushChanges = command(
     if (!user) {
       throw new Error('Unauthorized');
     }
-
+    console.log(operations)
     // Process the sync operations
     const result = await syncEngine.push(operations, user.id);
     await pullChanges({ lastSync: 0, clientId: operations[0].clientId }).refresh()
