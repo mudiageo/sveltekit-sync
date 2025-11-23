@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { todosStore } from '$lib/db';
 
-  let newTodoText = $state('new');
+  let newTodoText = $state('');
 
   // Load todos on mount
   onMount(() => {
@@ -18,14 +18,18 @@
     todosStore.filter(todo => !todo.completed)
   );
 
-  // CRUD operations - super ergonomic!
+  const sortedTodos = $derived(
+    todosStore.sort((a, b) => b.createdAt - a.createdAt)
+  );
+
+  // CRUD operations
   async function addTodo() {
     if (!newTodoText.trim()) return;
     
     await todosStore.create({
       text: newTodoText,
       completed: false,
-      createdAt: new Date()
+      createdAt: Date.now()
     });
     
     newTodoText = '';
@@ -48,105 +52,118 @@
     const ids = completedTodos.map(t => t.id);
     await todosStore.deleteMany(ids);
   }
-  
-  // Example: Sorting
-const sortedTodos = $derived(
-  todosStore.sort((a, b) => b.createdAt - a.createdAt)
-);
-
-// Example: Computed properties
-const todoStats = $derived({
-  total: todosStore.count,
-  completed: todosStore.filter(t => t.completed).length,
-  active: todosStore.filter(t => !t.completed).length,
-  percentComplete: todosStore.count > 0 
-    ? (todosStore.filter(t => t.completed).length / todosStore.count) * 100 
-    : 0
-});
-
-// Example: Finding specific items
-const urgentTodo = $derived(
-  todosStore.find(t => t.priority === 'urgent')
-);
-
-// Example: Batch operations
-async function markAllComplete() {
-  const updates = todosStore.data.map(todo => ({
-    id: todo.id,
-    data: { completed: true }
-  }));
-  await todosStore.updateMany(updates);
-}
-
 </script>
 
-<div class="todos-page">
-  <h1>Todos</h1>
-
-  <!-- Loading state -->
-  {#if todosStore.isLoading}
-    <p>Loading todos...</p>
-  {/if}
-
-  <!-- Error state -->
-  {#if todosStore.error}
-    <div class="error">
-      Error: {todosStore.error.message}
+<div class="todos-page animate-fade-in max-w-3xl mx-auto">
+  <div class="flex items-center justify-between mb-8">
+    <h1 class="heading-1">Todos</h1>
+    <div class="stats text-muted">
+      <span>{activeTodos.length} active</span>
+      <span class="mx-2">•</span>
+      <span>{completedTodos.length} done</span>
     </div>
-  {/if}
+  </div>
 
   <!-- Add todo form -->
-  <form onsubmit={(e) => { e.preventDefault(); addTodo(); }}>
+  <form onsubmit={(e) => { e.preventDefault(); addTodo(); }} class="flex gap-sm mb-8">
     <input 
       bind:value={newTodoText}
       placeholder="What needs to be done?"
       disabled={todosStore.isLoading}
+      class="input"
+      autofocus
     />
-    <button type="submit">Add</button>
+    <button type="submit" class="btn btn-primary" disabled={!newTodoText.trim()}>
+      Add Task
+    </button>
   </form>
 
-  <!-- Stats -->
-  <div class="stats">
-    <span>Total: {todosStore.count}</span>
-    <span>Active: {activeTodos.length}</span>
-    <span>Completed: {completedTodos.length}</span>
-  </div>
-
-  <!-- Todo list - directly use todosStore.data -->
-  <ul class="todo-list">
-    {#each todosStore.data as todo (todo.id)}
-      <li class:completed={todo.completed}>
-        <input 
-          type="checkbox" 
-          checked={todo.completed}
-          onchange={() => toggleTodo(todo.id)}
-        />
-        <span>{todo.text}</span>
-        <button onclick={() => deleteTodo(todo.id)}>Delete</button>
-      </li>
-    {/each}
-  </ul>
-
-  <!-- Bulk actions -->
-  {#if completedTodos.length > 0}
-    <button onclick={deleteCompleted}>
-      Clear completed ({completedTodos.length})
-    </button>
+  <!-- Error state -->
+  {#if todosStore.error}
+    <div class="error-banner mb-4">
+      Error: {todosStore.error.message}
+    </div>
   {/if}
+
+  <!-- Todo list -->
+  <div class="todo-list flex flex-col gap-sm">
+    {#each sortedTodos as todo (todo.id)}
+      <div class="todo-item card flex items-center justify-between p-4 {todo.completed ? 'completed' : ''}">
+        <div class="flex items-center gap-md flex-1">
+          <input 
+            type="checkbox" 
+            checked={todo.completed}
+            onchange={() => toggleTodo(todo.id)}
+            class="checkbox"
+          />
+          <span class="todo-text">{todo.text}</span>
+        </div>
+        <button onclick={() => deleteTodo(todo.id)} class="btn btn-ghost btn-sm text-danger">
+          Delete
+        </button>
+      </div>
+    {/each}
+  </div>
 
   <!-- Empty state -->
   {#if todosStore.isEmpty && !todosStore.isLoading}
-    <p class="empty">No todos yet. Add one to get started!</p>
+    <div class="empty-state text-center py-12 text-muted">
+      <p>No todos yet. Add one above to get started!</p>
+    </div>
+  {/if}
+
+  <!-- Bulk actions -->
+  {#if completedTodos.length > 0}
+    <div class="mt-8 flex justify-center">
+      <button onclick={deleteCompleted} class="btn btn-ghost text-muted">
+        Clear {completedTodos.length} completed items
+      </button>
+    </div>
   {/if}
 </div>
 
 <style>
-  .completed span {
-    text-decoration: line-through;
-    opacity: 0.5;
+  .max-w-3xl { max-width: 48rem; }
+  .mx-auto { margin-left: auto; margin-right: auto; }
+  .mb-8 { margin-bottom: var(--spacing-xl); }
+  .mb-4 { margin-bottom: var(--spacing-md); }
+  .mt-8 { margin-top: var(--spacing-xl); }
+  .mx-2 { margin-left: 0.5rem; margin-right: 0.5rem; }
+  .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+  .p-4 { padding: var(--spacing-md); }
+  .text-danger { color: var(--color-danger); }
+
+  .todo-item {
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
   }
-  
-  .syncing { color: #2196F3; }
-  .pending { color: #FF9800; }
-  .synced { color: #4CAF50; }
+
+  .todo-item:hover {
+    border-color: var(--color-border);
+    transform: translateY(-1px);
+  }
+
+  .todo-item.completed {
+    opacity: 0.6;
+    background-color: transparent;
+    border: 1px solid var(--color-border);
+  }
+
+  .todo-item.completed .todo-text {
+    text-decoration: line-through;
+  }
+
+  .checkbox {
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+    accent-color: var(--color-primary);
+  }
+
+  .error-banner {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--color-danger);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+  }
 </style>

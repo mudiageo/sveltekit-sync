@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { initDB, syncEngine } from '$lib/db';
-  import { browser } from '$app/environment'
+  import { onMount } from "svelte";
+  import { initDB, syncEngine } from "$lib/db.js";
+  import { browser } from "$app/environment";
+  import "../app.css";
 
   let { children } = $props();
-  if(browser) await initDB();
-  onMount(async () => {
-  await initDB();
-    
+  if (browser) await initDB();
+  onMount(() => {
+    // initDB();
+
     return () => {
       syncEngine.destroy();
     };
@@ -30,8 +31,7 @@
     </div>
     <a href="/todos">Todos</a>
     <a href="/notes">Notes</a>
-
   </header>
-  
+
   {@render children()}
 </div>
