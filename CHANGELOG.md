@@ -1,5 +1,11 @@
 # @sveltekit-sync/core
 
+## 0.1.0-alpha.3
+
+### Patch Changes
+
+- 11f541c: fix: add default field to exports in package.json
+
 ## 0.1.0-alpha.2
 
 ### Minor Changes

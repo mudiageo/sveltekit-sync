@@ -5,6 +5,7 @@
     "sveltekit-sync": "0.0.1"
   },
   "changesets": [
+    "brave-times-invent",
     "cute-rabbits-refuse",
     "humble-pans-like",
     "major-drinks-see",
