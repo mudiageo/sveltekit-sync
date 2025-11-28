@@ -1,5 +1,11 @@
 # @sveltekit-sync/core
 
+## 0.1.0-alpha.4
+
+### Patch Changes
+
+- 7deb466: fix: remove sync.remote.ts from package
+
 ## 0.1.0-alpha.3
 
 ### Patch Changes
