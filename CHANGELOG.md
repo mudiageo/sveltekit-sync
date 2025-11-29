@@ -1,5 +1,11 @@
 # @sveltekit-sync/core
 
+## 0.1.0-alpha.5
+
+### Patch Changes
+
+- 7e985ad: fix: remove unused exports
+
 ## 0.1.0-alpha.4
 
 ### Patch Changes
