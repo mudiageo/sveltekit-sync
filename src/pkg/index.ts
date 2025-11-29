@@ -13,6 +13,3 @@ export type {
   LocalAdapter,
   ClientAdapter
 } from './types.js';
-
-// Remote sync functions
-export { pushChanges, pullChanges, getInitialData, subscribeToSync } from './sync.remote.js';
