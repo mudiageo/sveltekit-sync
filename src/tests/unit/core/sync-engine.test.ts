@@ -316,7 +316,7 @@ describe('SyncEngine', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: { id: 'todo-1', text: 'Test' },
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -355,7 +355,7 @@ describe('SyncEngine', () => {
 					table: 'todos',
 					operation: 'update',
 					data: { id: 'todo-1', text: 'Client text', _updatedAt: clientTime },
-					timestamp: now,
+					timestamp: clientTime,
 					clientId: 'client-1',
 					version: 2,
 					status: 'pending'

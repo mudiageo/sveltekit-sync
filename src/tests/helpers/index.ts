@@ -206,7 +206,7 @@ export function createTestOperation(
 		table: 'todos',
 		operation: 'insert',
 		data: { id: 'test-item-' + Math.random().toString(36).slice(2, 11), text: 'Test item' },
-		timestamp: Date.now(),
+		timestamp: new Date(),
 		clientId: 'test-client',
 		version: 1,
 		status: 'pending',
