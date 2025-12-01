@@ -894,7 +894,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 						id: `op-create-${i}`,
 						table: 'todos',
 						operation: 'insert',
-						data: { id: `todo-${i}` },
+						data: { id: `todo-${i}`, text: `Quick todo ${i}` },
 						timestamp: new Date(),
 						clientId,
 						version: 1,
