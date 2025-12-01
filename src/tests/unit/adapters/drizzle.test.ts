@@ -2,12 +2,12 @@
  * Drizzle Adapter Unit Tests
  * 
  * Comprehensive tests for the DrizzleAdapter server-side storage adapter.
- * Tests run in Node.js environment with mocked Drizzle database layer.
+ * Tests run in Node.js environment with an in-memory implementation that
+ * simulates the real Drizzle adapter behavior.
  * 
- * While we mock the database layer (necessary since we can't run a real database
- * in unit tests), we test the adapter's logic thoroughly including:
+ * Tests cover:
  * - All CRUD operations
- * - Sync metadata handling
+ * - Sync metadata handling (_version, _updatedAt, _clientId, _isDeleted)
  * - Conflict detection
  * - Batch operations
  * - Transaction support
@@ -15,18 +15,28 @@
  * 
  * @see https://sveltest.dev/docs/testing-patterns
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import type { SyncOperation, ServerAdapter, ClientState } from '$pkg/types.js';
 
 /**
- * In-memory data storage for testing
+ * Test record interface with sync metadata fields.
+ * 
+ * These fields are required by the sync engine for optimistic locking
+ * and change tracking. In a real implementation, these would be defined
+ * in the database schema.
  */
 interface MockRecord {
+	/** Primary key */
 	id: string;
+	/** Optimistic locking version, incremented on each update */
 	_version: number;
+	/** Last modification timestamp for change tracking */
 	_updatedAt: Date;
+	/** Client that made the last change (for excluding from pull) */
 	_clientId: string | null;
+	/** Soft delete flag */
 	_isDeleted: boolean;
+	/** Additional fields */
 	[key: string]: unknown;
 }
 

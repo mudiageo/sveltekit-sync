@@ -20,7 +20,7 @@ export default defineConfig({
 			{
 				// Client tests (Browser environment)
 				// For testing Svelte components, IndexedDB, BroadcastChannel, etc.
-				extends: true,
+				extends: './vite.config.ts',
 				test: {
 					name: 'client',
 					browser: {
@@ -39,7 +39,7 @@ export default defineConfig({
 			{
 				// SSR tests (Server-side rendering)
 				// For testing component rendering on the server
-				extends: true,
+				extends: './vite.config.ts',
 				test: {
 					name: 'ssr',
 					environment: 'node',
@@ -49,7 +49,7 @@ export default defineConfig({
 			{
 				// Server tests (Node.js environment)
 				// For ServerSyncEngine, DrizzleAdapter, types, utilities
-				extends: true,
+				extends: './vite.config.ts',
 				test: {
 					name: 'server',
 					environment: 'node',
