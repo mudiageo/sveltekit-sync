@@ -255,12 +255,24 @@ describe('SyncEngine', () => {
 				return { success: true, synced: [], conflicts: [], errors: [] };
 			});
 
+			// Add a pending operation without triggering an automatic sync
+			await adapter.addToQueue({
+				id: 'op-1',
+				table: 'todos',
+				operation: 'insert',
+				data: { id: 'todo-1', text: 'Test' },
+				timestamp: new Date(),
+				clientId: 'client-1',
+				version: 1,
+				status: 'pending'
+			});
+
 			const firstSync = engine.sync();
 			const secondSync = engine.sync();
 
 			await Promise.all([firstSync, secondSync]);
 
-			expect(remote.push).toHaveBeenCalledTimes(0); // No pending ops initially
+			expect(remote.push).toHaveBeenCalledTimes(1);
 		});
 
 		it('should force sync even if already syncing', async () => {
