@@ -323,9 +323,5 @@ export class MockBroadcastChannel {
  * Set up global BroadcastChannel mock for tests
  */
 export function setupBroadcastChannelMock(): void {
-	if (typeof globalThis.BroadcastChannel === 'undefined') {
-		(globalThis as unknown as { BroadcastChannel: typeof MockBroadcastChannel }).BroadcastChannel = MockBroadcastChannel;
-	} else {
-		(globalThis as unknown as { BroadcastChannel: typeof MockBroadcastChannel }).BroadcastChannel = MockBroadcastChannel;
-	}
+	(globalThis as unknown as { BroadcastChannel: typeof MockBroadcastChannel }).BroadcastChannel = MockBroadcastChannel;
 }

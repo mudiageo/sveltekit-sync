@@ -58,8 +58,8 @@ describe('Server Types Module', () => {
 			const config: SyncTableConfig<Todo> = {
 				table: 'todos',
 				transform: (row: Todo) => {
-					// eslint-disable-next-line @typescript-eslint/no-unused-vars
-					const { internalNotes, ...safe } = row;
+					const { internalNotes: _, ...safe } = row;
+					void _; // Explicitly discard
 					return safe;
 				}
 			};
@@ -164,8 +164,8 @@ describe('Server Types Module', () => {
 						columns: ['id', 'title', 'content', 'userId', 'tags', 'createdAt', '_version', '_updatedAt'],
 						where: (userId: string) => ({ userId }),
 						transform: (note: { internalNotes?: string }) => {
-							// eslint-disable-next-line @typescript-eslint/no-unused-vars
-							const { internalNotes, ...safeNote } = note;
+							const { internalNotes: _, ...safeNote } = note;
+							void _; // Explicitly discard
 							return safeNote;
 						}
 					},

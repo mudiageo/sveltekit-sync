@@ -345,19 +345,23 @@ describe('SyncEngine', () => {
 		});
 
 		it('should handle conflicts reported by remote push', async () => {
+			const now = Date.now();
+			const clientTime = new Date(now);
+			const serverTime = new Date(now - 10000);
+			
 			const conflict: Conflict = {
 				operation: {
 					id: 'op-1',
 					table: 'todos',
 					operation: 'update',
-					data: { id: 'todo-1', text: 'Client text', _updatedAt: new Date() },
-					timestamp: Date.now(),
+					data: { id: 'todo-1', text: 'Client text', _updatedAt: clientTime },
+					timestamp: now,
 					clientId: 'client-1',
 					version: 2,
 					status: 'pending'
 				},
-				serverData: { id: 'todo-1', text: 'Server text', _updatedAt: new Date(Date.now() - 10000) },
-				clientData: { id: 'todo-1', text: 'Client text', _updatedAt: new Date() }
+				serverData: { id: 'todo-1', text: 'Server text', _updatedAt: serverTime },
+				clientData: { id: 'todo-1', text: 'Client text', _updatedAt: clientTime }
 			};
 
 			remote.push.mockResolvedValue({
@@ -372,8 +376,8 @@ describe('SyncEngine', () => {
 				id: 'op-1',
 				table: 'todos',
 				operation: 'update',
-				data: { id: 'todo-1', text: 'Client text', _updatedAt: new Date() },
-				timestamp: Date.now(),
+				data: { id: 'todo-1', text: 'Client text', _updatedAt: clientTime },
+				timestamp: now,
 				clientId: 'client-1',
 				version: 2,
 				status: 'pending'
