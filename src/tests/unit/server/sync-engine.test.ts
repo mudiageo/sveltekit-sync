@@ -57,7 +57,7 @@ function createOperation(overrides: Partial<SyncOperation> = {}): SyncOperation 
 		table: 'todos',
 		operation: 'insert',
 		data: { id: 'todo-1', text: 'Test todo', userId: 'user-1' },
-		timestamp: Date.now(),
+		timestamp: new Date (overrides.timestamp || Date.now()),
 		clientId: 'client-1',
 		version: 1,
 		status: 'pending',

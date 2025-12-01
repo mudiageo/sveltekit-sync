@@ -48,7 +48,7 @@ describe('Types Module', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: { id: 'todo-1', text: 'Test todo' },
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -67,7 +67,7 @@ describe('Types Module', () => {
 				table: 'todos',
 				operation: 'update',
 				data: { id: 'todo-1', text: 'Updated todo' },
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 2,
 				status: 'pending'
@@ -83,7 +83,7 @@ describe('Types Module', () => {
 				table: 'todos',
 				operation: 'delete',
 				data: { id: 'todo-1' },
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -98,7 +98,7 @@ describe('Types Module', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: { id: 'todo-1' },
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'error',
@@ -116,7 +116,7 @@ describe('Types Module', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: { id: 'todo-1' },
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'synced'
@@ -152,7 +152,7 @@ describe('Types Module', () => {
 					table: 'todos',
 					operation: 'update',
 					data: { id: 'todo-1', text: 'Client text' },
-					timestamp: Date.now(),
+					timestamp: new Date(),
 					clientId: 'client-1',
 					version: 2,
 					status: 'pending'
@@ -202,7 +202,7 @@ describe('Types Module', () => {
 					table: 'todos',
 					operation: 'update',
 					data: { id: 'todo-1' },
-					timestamp: Date.now(),
+					timestamp: new Date(),
 					clientId: 'client-1',
 					version: 2,
 					status: 'pending'

@@ -198,7 +198,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: { id: 'todo-1', text: 'Test' },
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -218,7 +218,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: {},
-				timestamp: now,
+				timestamp: new Date(now),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -228,7 +228,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'update',
 				data: {},
-				timestamp: now + 1,
+				timestamp: new Date(now + 1),
 				clientId: 'client-1',
 				version: 2,
 				status: 'pending'
@@ -245,7 +245,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: {},
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -255,7 +255,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: {},
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -274,7 +274,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: {},
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -292,7 +292,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: {},
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -552,7 +552,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 						table: 'todos',
 						operation: 'insert',
 						data: { id: `todo-${i}` },
-						timestamp: Date.now() + i,
+						timestamp: new Date(Date.now() + i),
 						clientId: 'client-1',
 						version: 1,
 						status: 'pending'
@@ -584,7 +584,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 					table: 'todos',
 					operation: 'insert',
 					data: { id: `todo-${i}` },
-					timestamp: now + i,
+					timestamp: new Date(now + i),
 					clientId: 'client-1',
 					version: 1,
 					status: 'pending'
@@ -607,7 +607,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 					table: 'todos',
 					operation: 'insert',
 					data: {},
-					timestamp: Date.now(),
+					timestamp: new Date(),
 					clientId: 'client-1',
 					version: 1,
 					status: 'pending'
@@ -627,7 +627,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: {},
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -644,9 +644,9 @@ describe('IndexedDBAdapter (Browser)', () => {
 
 		it('should track different operation types', async () => {
 			const operations: SyncOperation[] = [
-				{ id: 'op-1', table: 'todos', operation: 'insert', data: {}, timestamp: Date.now(), clientId: 'c1', version: 1, status: 'pending' },
-				{ id: 'op-2', table: 'todos', operation: 'update', data: {}, timestamp: Date.now(), clientId: 'c1', version: 2, status: 'pending' },
-				{ id: 'op-3', table: 'todos', operation: 'delete', data: {}, timestamp: Date.now(), clientId: 'c1', version: 3, status: 'pending' }
+				{ id: 'op-1', table: 'todos', operation: 'insert', data: {}, timestamp: new Date(), clientId: 'c1', version: 1, status: 'pending' },
+				{ id: 'op-2', table: 'todos', operation: 'update', data: {}, timestamp: new Date(), clientId: 'c1', version: 2, status: 'pending' },
+				{ id: 'op-3', table: 'todos', operation: 'delete', data: {}, timestamp: new Date(), clientId: 'c1', version: 3, status: 'pending' }
 			];
 			
 			for (const op of operations) {
@@ -688,7 +688,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: {},
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -761,7 +761,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: { id: 'todo-1' },
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: 'client-1',
 				version: 1,
 				status: 'pending'
@@ -821,7 +821,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 				table: 'todos',
 				operation: 'insert',
 				data: todo,
-				timestamp: Date.now(),
+				timestamp: new Date(),
 				clientId: await adapter.getClientId(),
 				version: 1,
 				status: 'pending'
@@ -895,7 +895,7 @@ describe('IndexedDBAdapter (Browser)', () => {
 						table: 'todos',
 						operation: 'insert',
 						data: { id: `todo-${i}` },
-						timestamp: Date.now(),
+						timestamp: new Date(),
 						clientId,
 						version: 1,
 						status: 'pending'

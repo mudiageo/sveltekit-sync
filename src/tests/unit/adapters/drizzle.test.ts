@@ -262,7 +262,7 @@ function createTestOperation(overrides: Partial<SyncOperation> = {}): SyncOperat
 		table: 'todos',
 		operation: 'insert',
 		data: { id: 'todo-1', text: 'Test todo', userId: 'user-1' },
-		timestamp: Date.now(),
+		timestamp: new Date(),
 		clientId: 'client-1',
 		version: 1,
 		status: 'pending',

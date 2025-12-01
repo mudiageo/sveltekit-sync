@@ -574,7 +574,7 @@ describe('SyncEngine', () => {
 						table: 'todos',
 						operation: 'insert',
 						data: { id: `todo-${i}`, text: `Todo ${i}` },
-						timestamp: Date.now(),
+						timestamp: new Date(),
 						clientId: 'client-1',
 						version: 1,
 						status: 'pending'
@@ -642,7 +642,7 @@ describe('SyncEngine', () => {
 					table: 'todos',
 					operation: 'update',
 					data: { id: 'todo-1', text: 'Manually resolved' },
-					timestamp: Date.now(),
+					timestamp: new Date(),
 					clientId: 'client-1',
 					version: 2,
 					status: 'pending'
@@ -747,7 +747,7 @@ describe('SyncEngine', () => {
 						table: 'todos',
 						operation: 'update' as const,
 						data: { id: 'todo-1', text: 'Client' },
-						timestamp: Date.now(),
+						timestamp: new Date(),
 						clientId: 'client-1',
 						version: 2,
 						status: 'pending' as const
@@ -779,7 +779,7 @@ describe('SyncEngine', () => {
 					table: 'todos',
 					operation: 'update',
 					data: { id: 'todo-1', text: 'Client' },
-					timestamp: Date.now(),
+					timestamp: new Date(),
 					clientId: 'client-1',
 					version: 2,
 					status: 'pending'
@@ -812,7 +812,7 @@ describe('SyncEngine', () => {
 					table: 'todos',
 					operation: 'insert',
 					data: { id: 'todo-1', text: 'Test' },
-					timestamp: Date.now(),
+					timestamp: new Date(),
 					clientId: 'client-1',
 					version: 1,
 					status: 'pending'
@@ -852,7 +852,7 @@ describe('SyncEngine', () => {
 					table: 'todos',
 					operation: 'update',
 					data: { id: 'todo-1', text: 'Resolved' },
-					timestamp: Date.now(),
+					timestamp: new Date(),
 					clientId: 'client-1',
 					version: 2,
 					status: 'pending'
