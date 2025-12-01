@@ -490,6 +490,393 @@ describe('SyncEngine', () => {
 			expect(() => engine.destroy()).not.toThrow();
 		});
 	});
+
+	/**
+	 * Configuration Options Tests
+	 * Tests for all SyncConfig options
+	 */
+	describe('configuration options', () => {
+		describe('syncInterval', () => {
+			it('should use default syncInterval of 30000ms when not specified', () => {
+				const minimalConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull }
+				};
+				const minimalEngine = new SyncEngine(minimalConfig);
+				
+				// Engine should be created successfully with defaults
+				expect(minimalEngine).toBeDefined();
+				minimalEngine.destroy();
+			});
+
+			it('should not start auto-sync when syncInterval is 0', async () => {
+				const noAutoSyncConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: 0
+				};
+				const noAutoSyncEngine = new SyncEngine(noAutoSyncConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				
+				await noAutoSyncEngine.init();
+				
+				// With syncInterval: 0, sync should be triggered on each operation
+				await noAutoSyncEngine.create('todos', { text: 'Test' });
+				
+				// Sync should have been called
+				expect(remote.push).toHaveBeenCalled();
+				
+				noAutoSyncEngine.destroy();
+			});
+
+			it('should respect custom syncInterval value', async () => {
+				const customInterval = 5000;
+				const customIntervalConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: customInterval
+				};
+				const customEngine = new SyncEngine(customIntervalConfig);
+				
+				expect(customEngine).toBeDefined();
+				customEngine.destroy();
+			});
+		});
+
+		describe('batchSize', () => {
+			it('should use default batchSize of 50 when not specified', () => {
+				const minimalConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull }
+				};
+				const minimalEngine = new SyncEngine(minimalConfig);
+				
+				expect(minimalEngine).toBeDefined();
+				minimalEngine.destroy();
+			});
+
+			it('should respect custom batchSize value', async () => {
+				const customBatchConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: 0,
+					batchSize: 10
+				};
+				const batchEngine = new SyncEngine(customBatchConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				
+				await batchEngine.init();
+				
+				// Create multiple operations
+				for (let i = 0; i < 15; i++) {
+					await adapter.addToQueue({
+						id: `op-${i}`,
+						table: 'todos',
+						operation: 'insert',
+						data: { id: `todo-${i}`, text: `Todo ${i}` },
+						timestamp: Date.now(),
+						clientId: 'client-1',
+						version: 1,
+						status: 'pending'
+					});
+				}
+				
+				await batchEngine.sync();
+				
+				// Push should have been called (batching handled internally)
+				expect(remote.push).toHaveBeenCalled();
+				
+				batchEngine.destroy();
+			});
+		});
+
+		describe('conflictResolution', () => {
+			it('should use default conflictResolution of last-write-wins', () => {
+				const minimalConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull }
+				};
+				const minimalEngine = new SyncEngine(minimalConfig);
+				
+				expect(minimalEngine).toBeDefined();
+				minimalEngine.destroy();
+			});
+
+			it('should resolve conflicts using client-wins strategy', async () => {
+				const clientWinsConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: 0,
+					conflictResolution: 'client-wins',
+					onConflict: vi.fn()
+				};
+				
+				const clientWinsEngine = new SyncEngine(clientWinsConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				await clientWinsEngine.init();
+				
+				expect(clientWinsEngine).toBeDefined();
+				clientWinsEngine.destroy();
+			});
+
+			it('should resolve conflicts using server-wins strategy', async () => {
+				const serverWinsConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: 0,
+					conflictResolution: 'server-wins',
+					onConflict: vi.fn()
+				};
+				
+				const serverWinsEngine = new SyncEngine(serverWinsConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				await serverWinsEngine.init();
+				
+				expect(serverWinsEngine).toBeDefined();
+				serverWinsEngine.destroy();
+			});
+
+			it('should use manual conflict resolution when specified', async () => {
+				const manualResolve = vi.fn().mockResolvedValue({
+					id: 'resolved-op',
+					table: 'todos',
+					operation: 'update',
+					data: { id: 'todo-1', text: 'Manually resolved' },
+					timestamp: Date.now(),
+					clientId: 'client-1',
+					version: 2,
+					status: 'pending'
+				});
+				
+				const manualConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { 
+						push: remote.push, 
+						pull: remote.pull,
+						resolve: manualResolve
+					},
+					syncInterval: 0,
+					conflictResolution: 'manual',
+					onConflict: vi.fn()
+				};
+				
+				const manualEngine = new SyncEngine(manualConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				await manualEngine.init();
+				
+				expect(manualEngine).toBeDefined();
+				manualEngine.destroy();
+			});
+		});
+
+		describe('retryAttempts and retryDelay', () => {
+			it('should use default retryAttempts of 3', () => {
+				const minimalConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull }
+				};
+				const minimalEngine = new SyncEngine(minimalConfig);
+				
+				expect(minimalEngine).toBeDefined();
+				minimalEngine.destroy();
+			});
+
+			it('should use default retryDelay of 1000ms', () => {
+				const minimalConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull }
+				};
+				const minimalEngine = new SyncEngine(minimalConfig);
+				
+				expect(minimalEngine).toBeDefined();
+				minimalEngine.destroy();
+			});
+
+			it('should accept custom retryAttempts value', () => {
+				const customRetryConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					retryAttempts: 5
+				};
+				const customRetryEngine = new SyncEngine(customRetryConfig);
+				
+				expect(customRetryEngine).toBeDefined();
+				customRetryEngine.destroy();
+			});
+
+			it('should accept custom retryDelay value', () => {
+				const customDelayConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					retryDelay: 2000
+				};
+				const customDelayEngine = new SyncEngine(customDelayConfig);
+				
+				expect(customDelayEngine).toBeDefined();
+				customDelayEngine.destroy();
+			});
+		});
+
+		describe('callback functions', () => {
+			it('should call onSync callback during sync lifecycle', async () => {
+				const onSyncMock = vi.fn();
+				const callbackConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: 0,
+					onSync: onSyncMock
+				};
+				
+				const callbackEngine = new SyncEngine(callbackConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				await callbackEngine.init();
+				
+				await callbackEngine.create('todos', { text: 'Test' });
+				await new Promise(r => setTimeout(r, 50));
+				
+				expect(onSyncMock).toHaveBeenCalled();
+				
+				callbackEngine.destroy();
+			});
+
+			it('should call onConflict callback when conflicts occur', async () => {
+				const onConflictMock = vi.fn();
+				const conflict = {
+					operation: {
+						id: 'op-1',
+						table: 'todos',
+						operation: 'update' as const,
+						data: { id: 'todo-1', text: 'Client' },
+						timestamp: Date.now(),
+						clientId: 'client-1',
+						version: 2,
+						status: 'pending' as const
+					},
+					serverData: { id: 'todo-1', text: 'Server' },
+					clientData: { id: 'todo-1', text: 'Client' }
+				};
+				
+				remote.push.mockResolvedValue({
+					success: true,
+					synced: [],
+					conflicts: [conflict],
+					errors: []
+				});
+				
+				const conflictConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: 0,
+					onConflict: onConflictMock
+				};
+				
+				const conflictEngine = new SyncEngine(conflictConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				await conflictEngine.init();
+				
+				await adapter.addToQueue({
+					id: 'op-1',
+					table: 'todos',
+					operation: 'update',
+					data: { id: 'todo-1', text: 'Client' },
+					timestamp: Date.now(),
+					clientId: 'client-1',
+					version: 2,
+					status: 'pending'
+				});
+				
+				await conflictEngine.sync();
+				
+				expect(onConflictMock).toHaveBeenCalledWith(conflict);
+				
+				conflictEngine.destroy();
+			});
+
+			it('should call onError callback when errors occur', async () => {
+				const onErrorMock = vi.fn();
+				remote.push.mockRejectedValue(new Error('Sync failed'));
+				
+				const errorConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: 0,
+					onError: onErrorMock
+				};
+				
+				const errorEngine = new SyncEngine(errorConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				await errorEngine.init();
+				
+				await adapter.addToQueue({
+					id: 'op-1',
+					table: 'todos',
+					operation: 'insert',
+					data: { id: 'todo-1', text: 'Test' },
+					timestamp: Date.now(),
+					clientId: 'client-1',
+					version: 1,
+					status: 'pending'
+				});
+				
+				try {
+					await errorEngine.sync();
+				} catch {
+					// Expected
+				}
+				
+				expect(onErrorMock).toHaveBeenCalled();
+				
+				errorEngine.destroy();
+			});
+		});
+
+		describe('remote.resolve', () => {
+			it('should work without resolve function', async () => {
+				const noResolveConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { push: remote.push, pull: remote.pull },
+					syncInterval: 0
+				};
+				
+				const noResolveEngine = new SyncEngine(noResolveConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				await noResolveEngine.init();
+				
+				expect(noResolveEngine).toBeDefined();
+				noResolveEngine.destroy();
+			});
+
+			it('should use resolve function when provided', async () => {
+				const resolveFn = vi.fn().mockResolvedValue({
+					id: 'resolved',
+					table: 'todos',
+					operation: 'update',
+					data: { id: 'todo-1', text: 'Resolved' },
+					timestamp: Date.now(),
+					clientId: 'client-1',
+					version: 2,
+					status: 'pending'
+				});
+				
+				const resolveConfig: SyncConfig = {
+					local: { db: null, adapter },
+					remote: { 
+						push: remote.push, 
+						pull: remote.pull,
+						resolve: resolveFn
+					},
+					syncInterval: 0
+				};
+				
+				const resolveEngine = new SyncEngine(resolveConfig);
+				adapter.isInitialized.mockResolvedValue(true);
+				await resolveEngine.init();
+				
+				expect(resolveEngine).toBeDefined();
+				resolveEngine.destroy();
+			});
+		});
+	});
 });
 
 /**

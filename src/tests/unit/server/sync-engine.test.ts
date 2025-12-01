@@ -716,4 +716,286 @@ describe('ServerSyncEngine', () => {
 			expect(result).toBe(unsubscribe);
 		});
 	});
+
+	/**
+	 * SyncTableConfig Options Tests
+	 * Tests for all table configuration options
+	 */
+	describe('SyncTableConfig options', () => {
+		describe('table property', () => {
+			it('should use table name for database operations', async () => {
+				const tableConfig: SyncConfig = {
+					tables: {
+						items: {
+							table: 'item_records' // Different from key
+						}
+					}
+				};
+
+				adapter = createMockAdapter({
+					getChangesSince: vi.fn().mockResolvedValue([])
+				});
+				engine = new ServerSyncEngine(adapter, tableConfig);
+
+				await engine.pull(0, 'client-1', 'user-1');
+
+				expect(adapter.getChangesSince).toHaveBeenCalledWith(
+					'item_records',
+					0,
+					'user-1',
+					'client-1'
+				);
+			});
+		});
+
+		describe('columns property', () => {
+			it('should accept columns configuration', () => {
+				const columnsConfig: SyncConfig = {
+					tables: {
+						todos: {
+							table: 'todos',
+							columns: ['id', 'text', 'completed']
+						}
+					}
+				};
+
+				engine = new ServerSyncEngine(adapter, columnsConfig);
+				expect(engine).toBeDefined();
+			});
+		});
+
+		describe('where property', () => {
+			it('should use where clause for access control', async () => {
+				const whereConfig: SyncConfig = {
+					tables: {
+						todos: {
+							table: 'todos',
+							where: (userId) => ({ userId })
+						}
+					}
+				};
+
+				const existingRecord = {
+					id: 'todo-1',
+					text: 'Todo',
+					userId: 'user-1',
+					_version: 1
+				};
+
+				adapter = createMockAdapter({
+					findOne: vi.fn().mockResolvedValue(existingRecord)
+				});
+				engine = new ServerSyncEngine(adapter, whereConfig);
+
+				const operation = createOperation({
+					operation: 'update',
+					version: 2,
+					data: { id: 'todo-1', text: 'Updated', userId: 'user-1' }
+				});
+
+				const result = await engine.push([operation], 'user-1');
+
+				expect(result.synced).toContain('op-1');
+			});
+
+			it('should allow operations when where is not defined', async () => {
+				const noWhereConfig: SyncConfig = {
+					tables: {
+						todos: {
+							table: 'todos'
+						}
+					}
+				};
+
+				engine = new ServerSyncEngine(adapter, noWhereConfig);
+
+				const operation = createOperation({
+					operation: 'insert',
+					data: { id: 'todo-1', text: 'New' }
+				});
+
+				const result = await engine.push([operation], 'user-1');
+
+				expect(result.synced).toContain('op-1');
+			});
+		});
+
+		describe('transform property', () => {
+			it('should transform data before sending to client', async () => {
+				const transformConfig: SyncConfig = {
+					tables: {
+						todos: {
+							table: 'todos',
+							transform: (data) => {
+								// Remove sensitive fields
+								const { password, ...rest } = data;
+								return rest;
+							}
+						}
+					}
+				};
+
+				const changes: SyncOperation[] = [
+					createOperation({
+						data: { id: 'todo-1', text: 'Test', password: 'secret123' }
+					})
+				];
+
+				adapter = createMockAdapter({
+					getChangesSince: vi.fn().mockResolvedValue(changes)
+				});
+				engine = new ServerSyncEngine(adapter, transformConfig);
+
+				const result = await engine.pull(0, 'client-1', 'user-1');
+
+				expect(result[0].data).not.toHaveProperty('password');
+				expect(result[0].data.text).toBe('Test');
+			});
+
+			it('should apply no transformation when transform is not defined', async () => {
+				const noTransformConfig: SyncConfig = {
+					tables: {
+						todos: {
+							table: 'todos'
+						}
+					}
+				};
+
+				const originalData = { id: 'todo-1', text: 'Test', extra: 'field' };
+				const changes: SyncOperation[] = [
+					createOperation({ data: originalData })
+				];
+
+				adapter = createMockAdapter({
+					getChangesSince: vi.fn().mockResolvedValue(changes)
+				});
+				engine = new ServerSyncEngine(adapter, noTransformConfig);
+
+				const result = await engine.pull(0, 'client-1', 'user-1');
+
+				expect(result[0].data).toEqual(originalData);
+			});
+		});
+
+		describe('conflictResolution property', () => {
+			it('should use table-specific conflict resolution', async () => {
+				const tableConflictConfig: SyncConfig = {
+					tables: {
+						todos: {
+							table: 'todos',
+							conflictResolution: 'client-wins'
+						},
+						notes: {
+							table: 'notes',
+							conflictResolution: 'server-wins'
+						}
+					}
+				};
+
+				const existingRecord = {
+					id: 'todo-1',
+					text: 'Server',
+					userId: 'user-1',
+					_version: 3,
+					_updatedAt: new Date()
+				};
+
+				adapter = createMockAdapter({
+					findOne: vi.fn().mockResolvedValue(existingRecord)
+				});
+				engine = new ServerSyncEngine(adapter, tableConflictConfig);
+
+				// Test client-wins for todos
+				const todoOperation = createOperation({
+					table: 'todos',
+					operation: 'update',
+					version: 2,
+					data: { id: 'todo-1', text: 'Client', userId: 'user-1' }
+				});
+
+				const result = await engine.push([todoOperation], 'user-1');
+
+				// With client-wins, should be synced
+				expect(result.synced).toContain('op-1');
+			});
+
+			it('should default to last-write-wins when not specified', async () => {
+				const defaultConfig: SyncConfig = {
+					tables: {
+						todos: {
+							table: 'todos'
+							// No conflictResolution specified
+						}
+					}
+				};
+
+				const serverTime = Date.now();
+				const existingRecord = {
+					id: 'todo-1',
+					text: 'Server',
+					userId: 'user-1',
+					_version: 3,
+					_updatedAt: new Date(serverTime)
+				};
+
+				adapter = createMockAdapter({
+					findOne: vi.fn().mockResolvedValue(existingRecord)
+				});
+				engine = new ServerSyncEngine(adapter, defaultConfig);
+
+				// Older client timestamp should create conflict with default last-write-wins
+				const clientTime = serverTime - 10000;
+				const operation = createOperation({
+					operation: 'update',
+					version: 2,
+					timestamp: clientTime,
+					data: { id: 'todo-1', text: 'Client', userId: 'user-1' }
+				});
+
+				const result = await engine.push([operation], 'user-1');
+
+				// With last-write-wins and older client, should create conflict
+				expect(result.conflicts).toHaveLength(1);
+			});
+		});
+	});
+
+	/**
+	 * Global SyncConfig Options Tests
+	 */
+	describe('global SyncConfig options', () => {
+		describe('batchSize', () => {
+			it('should accept custom batchSize', () => {
+				const batchConfig: SyncConfig = {
+					tables: { todos: { table: 'todos' } },
+					batchSize: 100
+				};
+
+				engine = new ServerSyncEngine(adapter, batchConfig);
+				expect(engine).toBeDefined();
+			});
+		});
+
+		describe('enableRealtime', () => {
+			it('should accept enableRealtime option', () => {
+				const realtimeConfig: SyncConfig = {
+					tables: { todos: { table: 'todos' } },
+					enableRealtime: true
+				};
+
+				engine = new ServerSyncEngine(adapter, realtimeConfig);
+				expect(engine).toBeDefined();
+			});
+
+			it('should work with enableRealtime disabled', () => {
+				const noRealtimeConfig: SyncConfig = {
+					tables: { todos: { table: 'todos' } },
+					enableRealtime: false
+				};
+
+				engine = new ServerSyncEngine(adapter, noRealtimeConfig);
+				expect(engine).toBeDefined();
+			});
+		});
+	});
 });
