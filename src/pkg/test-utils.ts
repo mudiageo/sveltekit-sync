@@ -13,7 +13,7 @@ export function createMockLocalAdapter(
 	const storage = new Map<string, Map<string, Record<string, unknown>>>();
 	const queue = new Map<string, SyncOperation>();
 	let lastSync = 0;
-	const clientId = 'test-client-' + Math.random().toString(36).substr(2, 9);
+	const clientId = 'test-client-' + Math.random().toString(36).slice(2, 11);
 	let isInitialized = false;
 
 	const getTable = (table: string): Map<string, Record<string, unknown>> => {
@@ -184,10 +184,10 @@ export function createTestOperation(
 	overrides: Partial<SyncOperation> = {}
 ): SyncOperation {
 	return {
-		id: 'test-op-' + Math.random().toString(36).substr(2, 9),
+		id: 'test-op-' + Math.random().toString(36).slice(2, 11),
 		table: 'todos',
 		operation: 'insert',
-		data: { id: 'test-item-' + Math.random().toString(36).substr(2, 9), text: 'Test item' },
+		data: { id: 'test-item-' + Math.random().toString(36).slice(2, 11), text: 'Test item' },
 		timestamp: Date.now(),
 		clientId: 'test-client',
 		version: 1,
@@ -210,7 +210,7 @@ export function createTestTodo(overrides: Partial<{
 	_clientId: string;
 }> = {}) {
 	return {
-		id: 'todo-' + Math.random().toString(36).substr(2, 9),
+		id: 'todo-' + Math.random().toString(36).slice(2, 11),
 		text: 'Test todo',
 		completed: false,
 		userId: 'user-1',

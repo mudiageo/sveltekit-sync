@@ -66,7 +66,7 @@ function createMockAdapter(): LocalAdapter & {
 	const storage = new Map<string, Map<string, Record<string, unknown>>>();
 	const queue = new Map<string, SyncOperation>();
 	let lastSync = 0;
-	const clientId = 'test-client-' + Math.random().toString(36).substr(2, 9);
+	const clientId = 'test-client-' + Math.random().toString(36).slice(2, 11);
 	let initialized = false;
 
 	const getTable = (table: string): Map<string, Record<string, unknown>> => {
