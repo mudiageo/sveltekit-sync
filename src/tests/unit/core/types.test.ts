@@ -1,3 +1,11 @@
+/**
+ * Types Module Unit Tests
+ * 
+ * Tests for core type interfaces and type guards.
+ * Following Sveltest Foundation First approach - all test cases are defined upfront.
+ * 
+ * @see https://sveltest.dev/docs/testing-patterns
+ */
 import { describe, it, expect } from 'vitest';
 import type {
 	SyncStatus,
@@ -10,9 +18,13 @@ import type {
 	QueryFilter,
 	ClientAdapter,
 	LocalAdapter
-} from './types.js';
+} from '$pkg/types.js';
 
 describe('Types Module', () => {
+	/**
+	 * SyncStatus Type Tests
+	 * Valid values: 'idle' | 'syncing' | 'error' | 'conflict' | 'offline'
+	 */
 	describe('SyncStatus', () => {
 		it('should allow valid sync status values', () => {
 			const validStatuses: SyncStatus[] = ['idle', 'syncing', 'error', 'conflict', 'offline'];
@@ -25,6 +37,10 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * SyncOperation Type Tests
+	 * Core type for tracking all sync operations
+	 */
 	describe('SyncOperation', () => {
 		it('should create a valid insert operation', () => {
 			const insertOp: SyncOperation = {
@@ -110,6 +126,10 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * SyncResult Type Tests
+	 * Response type from sync operations
+	 */
 	describe('SyncResult', () => {
 		it('should create a successful sync result', () => {
 			const result: SyncResult = {
@@ -170,6 +190,10 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * Conflict Type Tests
+	 * Represents sync conflicts between client and server
+	 */
 	describe('Conflict', () => {
 		it('should create a conflict with resolution', () => {
 			const conflict: Conflict = {
@@ -199,6 +223,10 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * ClientState Type Tests
+	 * Tracks client sync state on the server
+	 */
 	describe('ClientState', () => {
 		it('should create a valid client state', () => {
 			const state: ClientState = {
@@ -215,6 +243,10 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * QueryFilter Type Tests
+	 * Used for filtering and sorting data queries
+	 */
 	describe('QueryFilter', () => {
 		it('should create a valid query filter', () => {
 			const filter: QueryFilter = {
@@ -244,6 +276,10 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * SyncConfig Type Tests
+	 * Configuration for the sync engine
+	 */
 	describe('SyncConfig', () => {
 		it('should create a minimal sync config', () => {
 			const mockPush = async () => ({
@@ -324,9 +360,12 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * ServerAdapter Interface Tests
+	 * Required methods for server-side storage
+	 */
 	describe('ServerAdapter Interface', () => {
 		it('should define required methods', () => {
-			// Type check that the interface has the expected shape
 			const mockAdapter: ServerAdapter = {
 				insert: async () => ({}),
 				update: async () => ({}),
@@ -382,6 +421,10 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * ClientAdapter Interface Tests
+	 * Required methods for client-side storage
+	 */
 	describe('ClientAdapter Interface', () => {
 		it('should define required methods', () => {
 			const mockAdapter: ClientAdapter = {
@@ -438,6 +481,10 @@ describe('Types Module', () => {
 		});
 	});
 
+	/**
+	 * LocalAdapter Interface Tests
+	 * Extends ClientAdapter with initialization tracking
+	 */
 	describe('LocalAdapter Interface', () => {
 		it('should extend ClientAdapter with initialization tracking', () => {
 			const mockAdapter: LocalAdapter = {

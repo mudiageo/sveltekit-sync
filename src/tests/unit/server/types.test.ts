@@ -1,7 +1,19 @@
+/**
+ * Server Types Unit Tests
+ * 
+ * Tests for server-side configuration types.
+ * Following Sveltest Foundation First approach.
+ * 
+ * @see https://sveltest.dev/docs/testing-patterns
+ */
 import { describe, it, expect } from 'vitest';
-import type { SyncTableConfig, SyncConfig } from './types.js';
+import type { SyncTableConfig, SyncConfig } from '$pkg/server/types.js';
 
 describe('Server Types Module', () => {
+	/**
+	 * SyncTableConfig Tests
+	 * Configuration for individual sync tables
+	 */
 	describe('SyncTableConfig', () => {
 		it('should create a minimal table config', () => {
 			const config: SyncTableConfig = {
@@ -92,6 +104,10 @@ describe('Server Types Module', () => {
 		});
 	});
 
+	/**
+	 * SyncConfig Tests
+	 * Global server sync configuration
+	 */
 	describe('SyncConfig', () => {
 		it('should create a minimal sync config', () => {
 			const config: SyncConfig = {
@@ -156,7 +172,6 @@ describe('Server Types Module', () => {
 					teamTodos: {
 						table: 'team_todos',
 						columns: ['id', 'text', 'completed', 'teamId', 'assignedTo', 'createdAt', '_version', '_updatedAt']
-						// Shared data - no where clause needed
 					}
 				},
 				batchSize: 100,

@@ -1,201 +1,37 @@
+/**
+ * SyncEngine Unit Tests
+ * 
+ * Tests for the client-side SyncEngine class.
+ * Following Sveltest Foundation First approach with comprehensive coverage.
+ * 
+ * @see https://sveltest.dev/docs/testing-patterns
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SyncEngine, CollectionStore } from './sync.svelte.js';
-import type { SyncConfig, SyncOperation, SyncResult, Conflict, LocalAdapter } from './types.js';
+import { SyncEngine, CollectionStore } from '$pkg/sync.svelte.js';
+import type { SyncConfig, Conflict } from '$pkg/types.js';
+import { 
+	createMockLocalAdapter, 
+	createMockRemote, 
+	MockBroadcastChannel, 
+	setupBroadcastChannelMock 
+} from '../../helpers/index.js';
 
-// Mock BroadcastChannel for Node.js environment
-class MockBroadcastChannel {
-	name: string;
-	onmessage: ((event: { data: unknown }) => void) | null = null;
-	private static channels = new Map<string, Set<MockBroadcastChannel>>();
-	private closed = false;
-
-	constructor(name: string) {
-		this.name = name;
-		if (!MockBroadcastChannel.channels.has(name)) {
-			MockBroadcastChannel.channels.set(name, new Set());
-		}
-		MockBroadcastChannel.channels.get(name)!.add(this);
-	}
-
-	postMessage(message: unknown): void {
-		if (this.closed) {
-			// Silently ignore if closed (common in tests)
-			return;
-		}
-		const channels = MockBroadcastChannel.channels.get(this.name);
-		if (channels) {
-			channels.forEach((channel) => {
-				if (channel !== this && channel.onmessage && !channel.closed) {
-					try {
-						channel.onmessage({ data: message });
-					} catch {
-						// Ignore errors from message handlers
-					}
-				}
-			});
-		}
-	}
-
-	close(): void {
-		this.closed = true;
-		const channels = MockBroadcastChannel.channels.get(this.name);
-		if (channels) {
-			channels.delete(this);
-		}
-	}
-
-	static reset(): void {
-		this.channels.clear();
-	}
-}
-
-// Set up global BroadcastChannel mock if not available
-if (typeof globalThis.BroadcastChannel === 'undefined') {
-	(globalThis as unknown as { BroadcastChannel: typeof MockBroadcastChannel }).BroadcastChannel = MockBroadcastChannel;
-} else {
-	// Replace the native BroadcastChannel with our mock for tests
-	(globalThis as unknown as { BroadcastChannel: typeof MockBroadcastChannel }).BroadcastChannel = MockBroadcastChannel;
-}
-
-// Create mock adapter helper
-function createMockAdapter(): LocalAdapter & {
-	_storage: Map<string, Map<string, Record<string, unknown>>>;
-	_queue: Map<string, SyncOperation>;
-	_reset: () => void;
-} {
-	const storage = new Map<string, Map<string, Record<string, unknown>>>();
-	const queue = new Map<string, SyncOperation>();
-	let lastSync = 0;
-	const clientId = 'test-client-' + Math.random().toString(36).slice(2, 11);
-	let initialized = false;
-
-	const getTable = (table: string): Map<string, Record<string, unknown>> => {
-		if (!storage.has(table)) {
-			storage.set(table, new Map());
-		}
-		return storage.get(table)!;
-	};
-
-	const adapter = {
-		insert: vi.fn(async (table: string, data: Record<string, unknown>) => {
-			getTable(table).set(data.id as string, { ...data });
-			return { ...data };
-		}),
-
-		update: vi.fn(async (table: string, id: string, data: Record<string, unknown>) => {
-			const existing = getTable(table).get(id);
-			const updated = { ...existing, ...data, id };
-			getTable(table).set(id, updated);
-			return updated;
-		}),
-
-		delete: vi.fn(async (table: string, id: string) => {
-			getTable(table).delete(id);
-		}),
-
-		find: vi.fn(async (table: string) => {
-			return Array.from(getTable(table).values());
-		}),
-
-		findOne: vi.fn(async (table: string, id: string) => {
-			return getTable(table).get(id) || null;
-		}),
-
-		addToQueue: vi.fn(async (op: SyncOperation) => {
-			queue.set(op.id, op);
-		}),
-
-		getQueue: vi.fn(async () => {
-			return Array.from(queue.values());
-		}),
-
-		removeFromQueue: vi.fn(async (ids: string[]) => {
-			ids.forEach((id) => queue.delete(id));
-		}),
-
-		updateQueueStatus: vi.fn(
-			async (id: string, status: SyncOperation['status'], error?: string) => {
-				const op = queue.get(id);
-				if (op) {
-					queue.set(id, { ...op, status, error });
-				}
-			}
-		),
-
-		getLastSync: vi.fn(async () => lastSync),
-
-		setLastSync: vi.fn(async (timestamp: number) => {
-			lastSync = timestamp;
-		}),
-
-		getClientId: vi.fn(async () => clientId),
-
-		isInitialized: vi.fn(async () => initialized),
-
-		setInitialized: vi.fn(async (value: boolean) => {
-			initialized = value;
-		}),
-
-		_storage: storage,
-		_queue: queue,
-		_reset: () => {
-			storage.clear();
-			queue.clear();
-			lastSync = 0;
-			initialized = false;
-		}
-	};
-
-	return adapter;
-}
-
-// Create mock remote functions
-function createMockRemote() {
-	const pushedOperations: SyncOperation[] = [];
-	const serverData: SyncOperation[] = [];
-
-	return {
-		push: vi.fn(async (ops: SyncOperation[]): Promise<SyncResult> => {
-			pushedOperations.push(...ops);
-			return {
-				success: true,
-				synced: ops.map((op) => op.id),
-				conflicts: [],
-				errors: []
-			};
-		}),
-
-		pull: vi.fn(async (): Promise<SyncOperation[]> => {
-			return serverData;
-		}),
-
-		resolve: vi.fn(async (conflict: Conflict): Promise<SyncOperation> => {
-			return conflict.operation;
-		}),
-
-		_pushedOperations: pushedOperations,
-		_serverData: serverData,
-		_addServerData: (op: SyncOperation) => serverData.push(op),
-		_reset: () => {
-			pushedOperations.length = 0;
-			serverData.length = 0;
-		}
-	};
-}
+// Set up global mocks before tests
+setupBroadcastChannelMock();
 
 describe('SyncEngine', () => {
-	let adapter: ReturnType<typeof createMockAdapter>;
+	let adapter: ReturnType<typeof createMockLocalAdapter>;
 	let remote: ReturnType<typeof createMockRemote>;
 	let config: SyncConfig;
 	let engine: SyncEngine;
 
 	beforeEach(() => {
-		adapter = createMockAdapter();
+		adapter = createMockLocalAdapter();
 		remote = createMockRemote();
 		config = {
 			local: { db: null, adapter },
 			remote: { push: remote.push, pull: remote.pull, resolve: remote.resolve },
-			syncInterval: 0, // Disable auto-sync for tests
+			syncInterval: 0, // Disable auto-sync for predictable testing
 			batchSize: 50,
 			conflictResolution: 'last-write-wins',
 			retryAttempts: 3,
@@ -212,6 +48,10 @@ describe('SyncEngine', () => {
 		engine.destroy();
 	});
 
+	/**
+	 * Initialization Tests
+	 * Tests for engine setup and configuration
+	 */
 	describe('initialization', () => {
 		it('should initialize with default config values', () => {
 			const minimalConfig: SyncConfig = {
@@ -270,6 +110,10 @@ describe('SyncEngine', () => {
 		});
 	});
 
+	/**
+	 * CRUD Operation Tests
+	 * Tests for create, read, update, delete operations
+	 */
 	describe('CRUD operations', () => {
 		beforeEach(async () => {
 			adapter.isInitialized.mockResolvedValue(true);
@@ -316,13 +160,9 @@ describe('SyncEngine', () => {
 
 		describe('update', () => {
 			it('should update a record and increment version', async () => {
-				// First create a record
 				const created = await engine.create('todos', { text: 'Original' });
-
-				// Sync to clear the pending operation
 				engine.state.pendingOps.length = 0;
 
-				// Then update it
 				const updated = await engine.update('todos', created.id, { text: 'Updated' });
 
 				expect(updated.text).toBe('Updated');
@@ -399,6 +239,10 @@ describe('SyncEngine', () => {
 		});
 	});
 
+	/**
+	 * Sync Operation Tests
+	 * Tests for push/pull synchronization
+	 */
 	describe('sync operations', () => {
 		beforeEach(async () => {
 			adapter.isInitialized.mockResolvedValue(true);
@@ -406,7 +250,6 @@ describe('SyncEngine', () => {
 		});
 
 		it('should not sync if already syncing', async () => {
-			// Start a slow sync
 			remote.push.mockImplementation(async () => {
 				await new Promise((r) => setTimeout(r, 100));
 				return { success: true, synced: [], conflicts: [], errors: [] };
@@ -417,7 +260,6 @@ describe('SyncEngine', () => {
 
 			await Promise.all([firstSync, secondSync]);
 
-			// Should only push once despite two sync calls
 			expect(remote.push).toHaveBeenCalledTimes(0); // No pending ops initially
 		});
 
@@ -429,7 +271,6 @@ describe('SyncEngine', () => {
 				return { success: true, synced: [], conflicts: [], errors: [] };
 			});
 
-			// Create some pending operations
 			await engine.create('todos', { text: 'Todo' });
 
 			syncPromises.push(engine.sync());
@@ -437,7 +278,6 @@ describe('SyncEngine', () => {
 
 			await Promise.all(syncPromises);
 
-			// With force, both should attempt to sync
 			expect(remote.push).toHaveBeenCalled();
 		});
 
@@ -449,8 +289,6 @@ describe('SyncEngine', () => {
 			await engine.init();
 
 			await engine.create('todos', { text: 'Todo' });
-			
-			// Wait for sync to complete
 			await new Promise((r) => setTimeout(r, 50));
 
 			expect(onSyncMock).toHaveBeenCalled();
@@ -460,10 +298,8 @@ describe('SyncEngine', () => {
 			const onErrorMock = vi.fn();
 			const onSyncMock = vi.fn();
 			
-			// Set up a push that fails
 			remote.push.mockRejectedValue(new Error('Network error'));
 			
-			// Create config that triggers sync but captures errors
 			const errorConfig: SyncConfig = {
 				...config,
 				onError: onErrorMock,
@@ -475,7 +311,6 @@ describe('SyncEngine', () => {
 			adapter.isInitialized.mockResolvedValue(true);
 			await errorEngine.init();
 
-			// Add an operation to queue manually so we can trigger sync separately
 			await adapter.addToQueue({
 				id: 'op-1',
 				table: 'todos',
@@ -487,7 +322,6 @@ describe('SyncEngine', () => {
 				status: 'pending'
 			});
 
-			// Trigger sync manually and catch the error
 			try {
 				await errorEngine.sync();
 			} catch {
@@ -500,6 +334,10 @@ describe('SyncEngine', () => {
 		});
 	});
 
+	/**
+	 * Conflict Resolution Tests
+	 * Tests for handling sync conflicts
+	 */
 	describe('conflict resolution', () => {
 		beforeEach(async () => {
 			adapter.isInitialized.mockResolvedValue(true);
@@ -529,7 +367,6 @@ describe('SyncEngine', () => {
 				errors: []
 			});
 
-			// Create item and set up the adapter to have a pending operation
 			await adapter.insert('todos', { id: 'todo-1', text: 'Original' });
 			await adapter.addToQueue({
 				id: 'op-1',
@@ -542,14 +379,16 @@ describe('SyncEngine', () => {
 				status: 'pending'
 			});
 
-			// Sync should handle the conflict
 			await engine.sync();
 
-			// The conflict should trigger onConflict callback
 			expect(config.onConflict).toHaveBeenCalled();
 		});
 	});
 
+	/**
+	 * State Management Tests
+	 * Tests for reactive state tracking
+	 */
 	describe('state management', () => {
 		it('should expose current sync state', async () => {
 			adapter.isInitialized.mockResolvedValue(true);
@@ -577,6 +416,10 @@ describe('SyncEngine', () => {
 		});
 	});
 
+	/**
+	 * Collection Store Tests
+	 * Tests for reactive collection stores
+	 */
 	describe('collection stores', () => {
 		beforeEach(async () => {
 			adapter.isInitialized.mockResolvedValue(true);
@@ -605,6 +448,10 @@ describe('SyncEngine', () => {
 		});
 	});
 
+	/**
+	 * Force Push/Pull Tests
+	 * Tests for manual sync operations
+	 */
 	describe('force push/pull', () => {
 		beforeEach(async () => {
 			adapter.isInitialized.mockResolvedValue(true);
@@ -626,27 +473,34 @@ describe('SyncEngine', () => {
 		});
 	});
 
+	/**
+	 * Cleanup Tests
+	 * Tests for resource cleanup
+	 */
 	describe('cleanup', () => {
 		it('should clean up resources on destroy', () => {
 			const engine = new SyncEngine(config);
 
 			engine.destroy();
 
-			// Should not throw when destroying
 			expect(() => engine.destroy()).not.toThrow();
 		});
 	});
 });
 
+/**
+ * CollectionStore Unit Tests
+ * Tests for reactive collection store behavior
+ */
 describe('CollectionStore', () => {
-	let adapter: ReturnType<typeof createMockAdapter>;
+	let adapter: ReturnType<typeof createMockLocalAdapter>;
 	let remote: ReturnType<typeof createMockRemote>;
 	let config: SyncConfig;
 	let engine: SyncEngine;
 	let collection: CollectionStore<{ id: string; text: string; completed: boolean }>;
 
 	beforeEach(async () => {
-		adapter = createMockAdapter();
+		adapter = createMockLocalAdapter();
 		remote = createMockRemote();
 		config = {
 			local: { db: null, adapter },
@@ -667,6 +521,9 @@ describe('CollectionStore', () => {
 		MockBroadcastChannel.reset();
 	});
 
+	/**
+	 * Data State Tests
+	 */
 	describe('data state', () => {
 		it('should have initial empty data', () => {
 			expect(collection.data).toEqual([]);
@@ -681,6 +538,9 @@ describe('CollectionStore', () => {
 		});
 	});
 
+	/**
+	 * CRUD Operation Tests
+	 */
 	describe('CRUD operations', () => {
 		describe('create', () => {
 			it('should create and add item to data array', async () => {
@@ -692,10 +552,8 @@ describe('CollectionStore', () => {
 			});
 
 			it('should support optimistic updates', async () => {
-				// Start the create but don't await
 				const createPromise = collection.create({ text: 'Optimistic', completed: false });
 
-				// Data should be updated immediately (optimistic)
 				expect(collection.data.some((item) => item.text === 'Optimistic')).toBe(true);
 
 				await createPromise;
@@ -730,10 +588,8 @@ describe('CollectionStore', () => {
 			it('should perform optimistic update', async () => {
 				const item = await collection.create({ text: 'Original', completed: false });
 
-				// Start update without awaiting
 				const updatePromise = collection.update(item.id, { completed: true });
 
-				// Should be updated optimistically
 				expect(collection.data.find((i) => i.id === item.id)?.completed).toBe(true);
 
 				await updatePromise;
@@ -758,10 +614,8 @@ describe('CollectionStore', () => {
 			it('should perform optimistic delete', async () => {
 				const item = await collection.create({ text: 'To delete', completed: false });
 
-				// Start delete without awaiting
 				const deletePromise = collection.delete(item.id);
 
-				// Should be removed optimistically
 				expect(collection.data.find((i) => i.id === item.id)).toBeUndefined();
 
 				await deletePromise;
@@ -785,6 +639,9 @@ describe('CollectionStore', () => {
 		});
 	});
 
+	/**
+	 * Batch Operation Tests
+	 */
 	describe('batch operations', () => {
 		it('should create multiple items', async () => {
 			const items = await collection.createMany([
@@ -823,6 +680,9 @@ describe('CollectionStore', () => {
 		});
 	});
 
+	/**
+	 * Utility Method Tests
+	 */
 	describe('utility methods', () => {
 		beforeEach(async () => {
 			await collection.createMany([
@@ -878,9 +738,11 @@ describe('CollectionStore', () => {
 		});
 	});
 
+	/**
+	 * Load and Reload Tests
+	 */
 	describe('load and reload', () => {
 		it('should load data from adapter', async () => {
-			// Pre-populate adapter storage
 			adapter._storage.set(
 				'todos',
 				new Map([
@@ -897,7 +759,6 @@ describe('CollectionStore', () => {
 
 		it('should set loading state during load', async () => {
 			adapter.find.mockImplementation(async () => {
-				// Check loading state inside the promise
 				expect(collection.isLoading).toBe(true);
 				return [];
 			});
@@ -910,7 +771,6 @@ describe('CollectionStore', () => {
 		it('should reload data', async () => {
 			await collection.create({ text: 'Initial', completed: false });
 
-			// Add directly to storage
 			adapter._storage.get('todos')?.set('new-todo', {
 				id: 'new-todo',
 				text: 'New todo',

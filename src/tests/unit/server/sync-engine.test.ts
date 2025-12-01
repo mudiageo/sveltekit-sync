@@ -1,9 +1,19 @@
+/**
+ * ServerSyncEngine Unit Tests
+ * 
+ * Tests for the server-side sync engine.
+ * Following Sveltest Foundation First approach with comprehensive coverage.
+ * 
+ * @see https://sveltest.dev/docs/testing-patterns
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ServerSyncEngine } from './sync-engine.js';
-import type { ServerAdapter, SyncOperation } from '../types.js';
-import type { SyncConfig, SyncTableConfig } from './types.js';
+import { ServerSyncEngine } from '$pkg/server/sync-engine.js';
+import type { ServerAdapter, SyncOperation } from '$pkg/types.js';
+import type { SyncConfig, SyncTableConfig } from '$pkg/server/types.js';
 
-// Create a mock server adapter
+/**
+ * Creates a mock server adapter for testing
+ */
 function createMockAdapter(overrides: Partial<ServerAdapter> = {}): ServerAdapter {
 	return {
 		insert: vi.fn().mockResolvedValue({}),
@@ -23,7 +33,9 @@ function createMockAdapter(overrides: Partial<ServerAdapter> = {}): ServerAdapte
 	};
 }
 
-// Create a valid sync config
+/**
+ * Creates a valid sync config for testing
+ */
 function createConfig(tableConfigs: Record<string, SyncTableConfig> = {}): SyncConfig {
 	return {
 		tables: {
@@ -36,10 +48,10 @@ function createConfig(tableConfigs: Record<string, SyncTableConfig> = {}): SyncC
 	};
 }
 
-// Create a sync operation helper
-function createOperation(
-	overrides: Partial<SyncOperation> = {}
-): SyncOperation {
+/**
+ * Creates a sync operation helper
+ */
+function createOperation(overrides: Partial<SyncOperation> = {}): SyncOperation {
 	return {
 		id: 'op-1',
 		table: 'todos',
@@ -64,7 +76,13 @@ describe('ServerSyncEngine', () => {
 		engine = new ServerSyncEngine(adapter, config);
 	});
 
+	/**
+	 * Push Operation Tests
+	 */
 	describe('push', () => {
+		/**
+		 * Insert Operation Tests
+		 */
 		describe('insert operations', () => {
 			it('should successfully insert a new record', async () => {
 				const operation = createOperation({
@@ -122,6 +140,9 @@ describe('ServerSyncEngine', () => {
 			});
 		});
 
+		/**
+		 * Update Operation Tests
+		 */
 		describe('update operations', () => {
 			it('should successfully update an existing record', async () => {
 				const existingRecord = {
@@ -170,36 +191,7 @@ describe('ServerSyncEngine', () => {
 			});
 
 			it('should handle version conflict with last-write-wins (client wins)', async () => {
-				const serverTime = Date.now() - 10000; // 10 seconds ago
-				const existingRecord = {
-					id: 'todo-1',
-					text: 'Server text',
-					userId: 'user-1',
-					_version: 3, // Different version
-					_updatedAt: new Date(serverTime)
-				};
-
-				adapter = createMockAdapter({
-					findOne: vi.fn().mockResolvedValue(existingRecord)
-				});
-				engine = new ServerSyncEngine(adapter, config);
-
-				const clientTime = Date.now(); // Now (later than server)
-				const operation = createOperation({
-					operation: 'update',
-					version: 2,
-					timestamp: clientTime,
-					data: { id: 'todo-1', text: 'Client text', userId: 'user-1' }
-				});
-
-				const result = await engine.push([operation], 'user-1');
-
-				// Client time is later, so with last-write-wins, client should win
-				expect(result.synced).toContain('op-1');
-			});
-
-			it('should handle version conflict with last-write-wins (server wins)', async () => {
-				const serverTime = Date.now(); // Now
+				const serverTime = Date.now() - 10000;
 				const existingRecord = {
 					id: 'todo-1',
 					text: 'Server text',
@@ -213,7 +205,7 @@ describe('ServerSyncEngine', () => {
 				});
 				engine = new ServerSyncEngine(adapter, config);
 
-				const clientTime = Date.now() - 10000; // 10 seconds ago
+				const clientTime = Date.now();
 				const operation = createOperation({
 					operation: 'update',
 					version: 2,
@@ -223,7 +215,34 @@ describe('ServerSyncEngine', () => {
 
 				const result = await engine.push([operation], 'user-1');
 
-				// Server time is later, so conflict should be returned
+				expect(result.synced).toContain('op-1');
+			});
+
+			it('should handle version conflict with last-write-wins (server wins)', async () => {
+				const serverTime = Date.now();
+				const existingRecord = {
+					id: 'todo-1',
+					text: 'Server text',
+					userId: 'user-1',
+					_version: 3,
+					_updatedAt: new Date(serverTime)
+				};
+
+				adapter = createMockAdapter({
+					findOne: vi.fn().mockResolvedValue(existingRecord)
+				});
+				engine = new ServerSyncEngine(adapter, config);
+
+				const clientTime = Date.now() - 10000;
+				const operation = createOperation({
+					operation: 'update',
+					version: 2,
+					timestamp: clientTime,
+					data: { id: 'todo-1', text: 'Client text', userId: 'user-1' }
+				});
+
+				const result = await engine.push([operation], 'user-1');
+
 				expect(result.conflicts).toHaveLength(1);
 			});
 
@@ -241,7 +260,7 @@ describe('ServerSyncEngine', () => {
 					id: 'todo-1',
 					text: 'Server text',
 					userId: 'user-1',
-					_version: 3, // Different version
+					_version: 3,
 					_updatedAt: new Date()
 				};
 
@@ -258,7 +277,6 @@ describe('ServerSyncEngine', () => {
 
 				const result = await engine.push([operation], 'user-1');
 
-				// With client-wins, update should be applied
 				expect(result.synced).toContain('op-1');
 			});
 
@@ -293,11 +311,13 @@ describe('ServerSyncEngine', () => {
 
 				const result = await engine.push([operation], 'user-1');
 
-				// With server-wins, conflict should be returned
 				expect(result.conflicts).toHaveLength(1);
 			});
 		});
 
+		/**
+		 * Delete Operation Tests
+		 */
 		describe('delete operations', () => {
 			it('should successfully soft delete a record', async () => {
 				const existingRecord = {
@@ -342,12 +362,14 @@ describe('ServerSyncEngine', () => {
 
 				const result = await engine.push([operation], 'user-1');
 
-				// Should still succeed (idempotent delete)
 				expect(result.success).toBe(true);
 				expect(result.synced).toContain('op-1');
 			});
 		});
 
+		/**
+		 * Access Control Tests
+		 */
 		describe('access control', () => {
 			it('should allow insert when no where clause is defined', async () => {
 				const noWhereConfig: SyncConfig = {
@@ -403,7 +425,7 @@ describe('ServerSyncEngine', () => {
 				const existingRecord = {
 					id: 'todo-1',
 					text: 'Todo',
-					userId: 'different-user', // Different user owns this
+					userId: 'different-user',
 					_version: 1
 				};
 
@@ -437,6 +459,9 @@ describe('ServerSyncEngine', () => {
 			});
 		});
 
+		/**
+		 * Error Handling Tests
+		 */
 		describe('error handling', () => {
 			it('should catch and report adapter errors', async () => {
 				adapter = createMockAdapter({
@@ -481,6 +506,9 @@ describe('ServerSyncEngine', () => {
 			});
 		});
 
+		/**
+		 * Transaction Support Tests
+		 */
 		describe('transaction support', () => {
 			it('should use transaction when available', async () => {
 				const transactionFn = vi.fn().mockImplementation(async (fn) => {
@@ -514,6 +542,9 @@ describe('ServerSyncEngine', () => {
 		});
 	});
 
+	/**
+	 * Pull Operation Tests
+	 */
 	describe('pull', () => {
 		it('should pull changes since last sync', async () => {
 			const changes: SyncOperation[] = [
@@ -536,7 +567,7 @@ describe('ServerSyncEngine', () => {
 			});
 			engine = new ServerSyncEngine(adapter, config);
 
-			const lastSync = Date.now() - 60000; // 1 minute ago
+			const lastSync = Date.now() - 60000;
 			const result = await engine.pull(lastSync, 'client-1', 'user-1');
 
 			expect(result).toHaveLength(2);
@@ -648,14 +679,15 @@ describe('ServerSyncEngine', () => {
 			});
 			engine = new ServerSyncEngine(adapter, multiTableConfig);
 
-			// Should not throw, should return results from successful tables
 			const result = await engine.pull(0, 'client-1', 'user-1');
 
-			// Should still get results from the notes table
 			expect(result.length).toBeGreaterThanOrEqual(0);
 		});
 	});
 
+	/**
+	 * Subscription Tests
+	 */
 	describe('subscribeToChanges', () => {
 		it('should throw error when adapter does not support subscriptions', async () => {
 			adapter = createMockAdapter({
