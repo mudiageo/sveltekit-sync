@@ -10,13 +10,13 @@ import type { LocalAdapter, SyncOperation, SyncResult, SyncConfig, Conflict } fr
 export function createMockLocalAdapter(
 	overrides: Partial<LocalAdapter> = {}
 ): LocalAdapter {
-	const storage = new Map<string, Map<string, any>>();
+	const storage = new Map<string, Map<string, Record<string, unknown>>>();
 	const queue = new Map<string, SyncOperation>();
 	let lastSync = 0;
-	let clientId = 'test-client-' + Math.random().toString(36).substr(2, 9);
+	const clientId = 'test-client-' + Math.random().toString(36).substr(2, 9);
 	let isInitialized = false;
 
-	const getTable = (table: string): Map<string, any> => {
+	const getTable = (table: string): Map<string, Record<string, unknown>> => {
 		if (!storage.has(table)) {
 			storage.set(table, new Map());
 		}
@@ -24,12 +24,12 @@ export function createMockLocalAdapter(
 	};
 
 	return {
-		insert: vi.fn().mockImplementation(async (table: string, data: any) => {
-			getTable(table).set(data.id, { ...data });
+		insert: vi.fn().mockImplementation(async (table: string, data: Record<string, unknown>) => {
+			getTable(table).set(data.id as string, { ...data });
 			return { ...data };
 		}),
 
-		update: vi.fn().mockImplementation(async (table: string, id: string, data: any) => {
+		update: vi.fn().mockImplementation(async (table: string, id: string, data: Record<string, unknown>) => {
 			const existing = getTable(table).get(id);
 			const updated = { ...existing, ...data, id };
 			getTable(table).set(id, updated);
@@ -95,7 +95,7 @@ export function createMockLocalAdapter(
 
 		...overrides
 	} as LocalAdapter & {
-		_storage: Map<string, Map<string, any>>;
+		_storage: Map<string, Map<string, Record<string, unknown>>>;
 		_queue: Map<string, SyncOperation>;
 		_reset: () => void;
 	};
@@ -149,7 +149,7 @@ export function createMockRemote(
 /**
  * Creates a test sync config
  */
-export function createTestSyncConfig<TLocalDB = any, TRemoteDB = any>(
+export function createTestSyncConfig<TLocalDB = unknown, TRemoteDB = unknown>(
 	overrides: Partial<SyncConfig<TLocalDB, TRemoteDB>> = {}
 ): SyncConfig<TLocalDB, TRemoteDB> {
 	const adapter = createMockLocalAdapter();

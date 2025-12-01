@@ -5,7 +5,7 @@ import type { SyncConfig, SyncOperation, SyncResult, Conflict, LocalAdapter } fr
 // Mock BroadcastChannel for Node.js environment
 class MockBroadcastChannel {
 	name: string;
-	onmessage: ((event: { data: any }) => void) | null = null;
+	onmessage: ((event: { data: unknown }) => void) | null = null;
 	private static channels = new Map<string, Set<MockBroadcastChannel>>();
 	private closed = false;
 
@@ -17,7 +17,7 @@ class MockBroadcastChannel {
 		MockBroadcastChannel.channels.get(name)!.add(this);
 	}
 
-	postMessage(message: any): void {
+	postMessage(message: unknown): void {
 		if (this.closed) {
 			// Silently ignore if closed (common in tests)
 			return;
@@ -28,7 +28,7 @@ class MockBroadcastChannel {
 				if (channel !== this && channel.onmessage && !channel.closed) {
 					try {
 						channel.onmessage({ data: message });
-					} catch (e) {
+					} catch {
 						// Ignore errors from message handlers
 					}
 				}
@@ -51,25 +51,25 @@ class MockBroadcastChannel {
 
 // Set up global BroadcastChannel mock if not available
 if (typeof globalThis.BroadcastChannel === 'undefined') {
-	(globalThis as any).BroadcastChannel = MockBroadcastChannel;
+	(globalThis as unknown as { BroadcastChannel: typeof MockBroadcastChannel }).BroadcastChannel = MockBroadcastChannel;
 } else {
 	// Replace the native BroadcastChannel with our mock for tests
-	(globalThis as any).BroadcastChannel = MockBroadcastChannel;
+	(globalThis as unknown as { BroadcastChannel: typeof MockBroadcastChannel }).BroadcastChannel = MockBroadcastChannel;
 }
 
 // Create mock adapter helper
 function createMockAdapter(): LocalAdapter & {
-	_storage: Map<string, Map<string, any>>;
+	_storage: Map<string, Map<string, Record<string, unknown>>>;
 	_queue: Map<string, SyncOperation>;
 	_reset: () => void;
 } {
-	const storage = new Map<string, Map<string, any>>();
+	const storage = new Map<string, Map<string, Record<string, unknown>>>();
 	const queue = new Map<string, SyncOperation>();
 	let lastSync = 0;
-	let clientId = 'test-client-' + Math.random().toString(36).substr(2, 9);
+	const clientId = 'test-client-' + Math.random().toString(36).substr(2, 9);
 	let initialized = false;
 
-	const getTable = (table: string): Map<string, any> => {
+	const getTable = (table: string): Map<string, Record<string, unknown>> => {
 		if (!storage.has(table)) {
 			storage.set(table, new Map());
 		}
@@ -77,12 +77,12 @@ function createMockAdapter(): LocalAdapter & {
 	};
 
 	const adapter = {
-		insert: vi.fn(async (table: string, data: any) => {
-			getTable(table).set(data.id, { ...data });
+		insert: vi.fn(async (table: string, data: Record<string, unknown>) => {
+			getTable(table).set(data.id as string, { ...data });
 			return { ...data };
 		}),
 
-		update: vi.fn(async (table: string, id: string, data: any) => {
+		update: vi.fn(async (table: string, id: string, data: Record<string, unknown>) => {
 			const existing = getTable(table).get(id);
 			const updated = { ...existing, ...data, id };
 			getTable(table).set(id, updated);

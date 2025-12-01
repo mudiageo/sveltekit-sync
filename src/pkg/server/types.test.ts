@@ -46,6 +46,7 @@ describe('Server Types Module', () => {
 			const config: SyncTableConfig<Todo> = {
 				table: 'todos',
 				transform: (row: Todo) => {
+					// eslint-disable-next-line @typescript-eslint/no-unused-vars
 					const { internalNotes, ...safe } = row;
 					return safe;
 				}
@@ -146,7 +147,8 @@ describe('Server Types Module', () => {
 						table: 'notes',
 						columns: ['id', 'title', 'content', 'userId', 'tags', 'createdAt', '_version', '_updatedAt'],
 						where: (userId: string) => ({ userId }),
-						transform: (note) => {
+						transform: (note: { internalNotes?: string }) => {
+							// eslint-disable-next-line @typescript-eslint/no-unused-vars
 							const { internalNotes, ...safeNote } = note;
 							return safeNote;
 						}
@@ -200,7 +202,7 @@ describe('Server Types Module', () => {
 			expect(tableConfigs).toHaveLength(3);
 			expect(entries).toHaveLength(3);
 
-			for (const [name, tableConfig] of entries) {
+			for (const [, tableConfig] of entries) {
 				expect(tableConfig.table).toBeDefined();
 			}
 		});

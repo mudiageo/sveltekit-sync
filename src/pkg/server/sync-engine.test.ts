@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ServerSyncEngine } from './sync-engine.js';
-import type { ServerAdapter, SyncOperation, SyncResult, Conflict } from '../types.js';
+import type { ServerAdapter, SyncOperation } from '../types.js';
 import type { SyncConfig, SyncTableConfig } from './types.js';
 
 // Create a mock server adapter
