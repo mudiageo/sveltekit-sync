@@ -88,9 +88,12 @@ function createInMemoryServerAdapter(): ServerAdapter & {
 			const tableData = getTableStorage(table);
 			const existing = tableData.get(id);
 			
-			if (!existing || existing._version !== version) {
-				throw new Error('Version conflict or record not found');
-			}
+			if (!existing) {
+    		throw new Error('Record not found');
+    	}
+    	if (existing._version !== version) {
+    		throw new Error('Version conflict');
+     	}
 			
 			const updated: MockRecord = {
 				...existing,
