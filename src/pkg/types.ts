@@ -47,6 +47,7 @@ export interface SyncConfig<TLocalDB = any, TRemoteDB = any> {
   conflictResolution?: 'client-wins' | 'server-wins' | 'manual' | 'last-write-wins';
   retryAttempts?: number;
   retryDelay?: number;
+  realtime?: RealtimeConfig;
 
   // Callbacks
   onSync?: (status: SyncStatus) => void;
@@ -144,3 +145,28 @@ export interface LocalAdapter<TDB = any> extends ClientAdapter<TDB> {
   isInitialized(): Promise<boolean>;
   setInitialized(value: boolean): Promise<void>;
 }
+
+export type RealtimeStatus = 'connected' | 'connecting' | 'disconnected' | 'fallback';
+
+export interface RealtimeClientConfig {
+  /** Enable realtime sync (default: true) */
+  enabled?: boolean;
+  
+  /** SSE endpoint URL (default: '/api/sync/realtime') */
+  endpoint?: string;
+  
+  /** Tables to subscribe to (default: [] = all tables) */
+  tables?: string[];
+  
+  /** Reconnect interval in ms (default: 1000) */
+  reconnectInterval?: number;
+  
+  /** Maximum reconnect interval in ms (default: 30000) */
+  maxReconnectInterval?: number;
+  
+  /** Max reconnect attempts before fallback to polling (default: 5) */
+  maxReconnectAttempts?: number;
+  
+  /** Heartbeat timeout in ms (default: 45000) */
+  heartbeatTimeout?: number;
+  }

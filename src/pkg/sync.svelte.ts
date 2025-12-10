@@ -1,9 +1,8 @@
 import type { Conflict, SyncConfig, SyncOperation, SyncStatus } from './types.js';
+import { RealtimeClient } from '../realtime/client.js'
+import { type RealtimeStatus as RTStatus } from '../realtime/types.js'
 
-// ============================================================================
 // MULTI-TAB SYNC COORDINATOR
-// ============================================================================
-
 class MultiTabCoordinator {
   private channel: BroadcastChannel;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
@@ -43,10 +42,7 @@ class MultiTabCoordinator {
   }
 }
 
-// ============================================================================
-// SYNC ENGINE CORE - ENHANCED
-// ============================================================================
-
+// SYNC ENGINE CORE
 export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
   private config: Required<SyncConfig<TLocalDB, TRemoteDB>>;
   private syncTimer: number | null = null;
@@ -59,7 +55,9 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
   private isInitialized = $state(false);
   private multiTab: MultiTabCoordinator;
   private collections: Map<string, CollectionStore<any>> = new Map();
-
+  private realtimeClient: RealtimeClient | null = null;
+  private realtimeStatus: RTStatus = $state('disconnected');
+  
   constructor(config: SyncConfig<TLocalDB, TRemoteDB>) {
     this.config = {
       syncInterval: 30000,
@@ -75,6 +73,33 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
 
     this.multiTab = new MultiTabCoordinator('sveltekit-sync');
     this.setupMultiTabSync();
+  }
+  
+  // Initialise realtime client if enabled (default: true)
+  if(typeof window !== 'undefined'){
+    const realtimeConfig = {
+      enabled: true,
+      endpoint: '/api/sync/realtime',
+      tables: [],
+      reconnectionIntrval: 1000,
+      maxReconnectInterval; 30000,
+      maxReconnectAttempts; 5,
+      heartbeatTimeout: 45000,
+      ...config.realtime,
+      onStatusChange: (status: RTStatus) => {
+        this.realtimeStatus = status;
+        this.handleRealtimeStatusChange(status);
+      },
+      onOperations: (operations: SyncOperation[]) => {
+        this.handleRealtimeOperations(operations)
+      },
+      onError: (error: Error) => {
+        console.error('Realtime error');
+        this.config.onError(error)
+      }
+    }
+    
+    this.realtimeClient = new RealtimeClient(realtimeConfig)
   }
 
   private setupMultiTabSync(): void {
@@ -94,6 +119,56 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
       }
     });
   }
+  
+  private handleRealtimeStatusChange(status: RTStatus): void {
+    if(status === 'fallback') {
+      // SSE failed, ensure polling is active
+      if(this.config.syncInterval > 0 && !this.syncTimer) this.startAutoSync();
+      
+    } else if(status === 'connected'){
+      // TODO SSE connected, we can optionally reduce polling frequency
+      // but keep it as fallback
+    }
+  }
+  private async handleRealtimeOperations(operations: SyncOperation[]): Promise<void> {
+    // TODO create apply
+    for (const op of operations) {
+      if (op.clientId === this.clientId) continue;
+        
+      try {
+        switch (op.operation) {
+          case 'insert':
+            await this.config.local.adapter.insert(op.table, op.data);
+            break;
+          case 'update':
+            await this.config.local.adapter.update(op.table, op.data.id, op.data);
+            break;
+          case 'delete':
+            await this.config.local.adapter.delete(op.table, op.data.id);
+            break;
+        }
+        
+        //Update collection
+        const collection = this.collections.get(op.table);
+        
+        if (collection) await colelction.reload();
+      } catch (error) {
+        console.error('Failed to apply realtime operation:', error);
+      }
+    }
+    
+    
+    //update lastSync timestamp
+    if (operations.length > 0) {
+      const maxTimestamp = Math.max(...operations.map((op: SyncOperation) => op.timestamp));
+      if (maxTimestamp > this.lastSync) {
+        await this.config.local.adapter.setLastSync(maxTimestamp);
+        this.lastSync = maxTimestamp;
+      }
+    }
+    
+    this.multiTab.broadcast('sync-complete', {})
+  } 
 
   async init(): Promise<void> {
     if (this.isInitialized) {
@@ -120,6 +195,12 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
       if (this.config.syncInterval > 0) {
         this.startAutoSync();
       }
+      
+      // Start realtime connection
+      if (this.realtimeClient) {
+        this.realtimeClient.init(this.clientId);
+      }
+      
     } catch (error) {
       console.error('SyncEngine initialization failed:', error);
       throw new Error(`Failed to initialize sync engine: ${error}`);
@@ -428,7 +509,9 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
       pendingOps: this.pendingOps,
       conflicts: this.conflicts,
       lastSync: this.lastSync,
-      hasPendingChanges: this.pendingOps.length > 0
+      hasPendingChanges: this.pendingOps.length > 0,
+      realtimeStatus: this.realtimeStatus,
+      isRealtimeConnected: this.realtimeStatus === 'connected',
     };
   }
 
@@ -447,17 +530,32 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
   async forcePull(): Promise<void> {
     await this.pull();
   }
+  
+  get realtime(): RealtimeClient | null {
+    return this.realtimeClient();
+  }
+  
+  enableRealtime(): void {
+    this.realtimeClient?.enable();
+  }
+
+  disableRealtime(): void {
+    this.realtimeClient?.disable();
+  }
+  
+  /** Force realtime reconnection */
+  reconnectRealtime(): void {
+    this.realtimeClient?.reconnect();
+  }
 
   destroy(): void {
     this.stopAutoSync();
     this.multiTab.close();
+    this.realtimeClient?.destroy();
   }
 }
 
-// ============================================================================
-// ERGONOMIC COLLECTION STORE
-// ============================================================================
-
+// COLLECTION STORE
 export class CollectionStore<T extends Record<string, any>> {
   private engine: SyncEngine;
   private tableName: string;
