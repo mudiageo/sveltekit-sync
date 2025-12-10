@@ -76,10 +76,18 @@ export const clientState = pgTable('client_state', {
 ### 2. Configure Server Sync
 
 ```typescript
-// src/lib/server/sync-schema.ts
-import { sql } from 'drizzle-orm';
+// src/lib/server/sync.ts
+import type { SyncConfig } from '$pjg/types'
+import { db } from '$lib/server/db'
+import * as schema from '$lib/server/db/schema'
+import { createServerSync } from '$pkg/server/sync-engine';
+import { DrizzleAdapter } from '$pkg/adapters/drizzle';
 
-export const syncSchema = {
+// Create database adapter
+const adapter = new DrizzleAdapter({ db, schema })
+
+// Define your sync config
+export const config: SyncConfig = {
   tables: {
     todos: {
       table: 'todos',
@@ -88,20 +96,44 @@ export const syncSchema = {
       where: (userId: string) => sql`user_id = ${userId}`,
       conflictResolution: 'last-write-wins'
     }
+  },
+  realtime: {
+    authenticate: (request) => {
+      const user = getUser(request);
+      if (!user) return null;
+      
+      return { userId: user.id};
+    }
   }
 };
+
+export const { syncEngine, handle } = createServerSync({ adapter, config });
+
 ```
 
-### 3. Create Remote Functions
+### 3. Add sync handle to Hooks
+```typescript
+import { sequence } from '@sveltejs/kit/hooks';
+import { handle as syncHandle } from '$lib/server/sync';
+import
+async function customHandle({ event, resolve }) {
+  return resolve(event);
+};
+
+export const handle = sequence(customHandle, syncHandle,);
+
+
+
+```
+
+### 4. Create Remote Functions
 
 ```typescript
 // src/lib/sync.remote.ts
 import { query, command } from '$app/server';
 import * as v from 'valibot';
-import { ServerSyncEngine } from '$lib/server/sync-engine';
+import { syncEngine } from '$lib/server/sync';
 import { getUser } from '$lib/server/auth';
-
-const syncEngine = new ServerSyncEngine();
 
 export const pushChanges = command(
   v.array(SyncOperationSchema),
@@ -120,7 +152,7 @@ export const pullChanges = query(
 );
 ```
 
-### 4. Initialize Client
+### 5. Initialize Client
 
 ```typescript
 // src/lib/db.ts
@@ -148,7 +180,7 @@ export async function initDB() {
 export const todosStore = syncEngine.collection('todos');
 ```
 
-### 5. Initialize in Root Layout
+### 6. Initialize in Root Layout
 
 ```svelte
 <!-- src/routes/+layout.svelte -->
@@ -175,7 +207,7 @@ export const todosStore = syncEngine.collection('todos');
 </div>
 ```
 
-### 6. Use in Components
+### 7. Use in Components
 
 ```svelte
 <!-- src/routes/todos/+page.svelte -->
