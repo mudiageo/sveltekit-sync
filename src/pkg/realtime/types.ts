@@ -67,6 +67,11 @@ export interface RealtimeServerConfig {
   /** Enable realtime features (default: true) */
   enabled?: boolean;
   
+  /**
+   * URL path for the SSE endpoint
+   */
+  path?: string;
+  
   /** Heartbeat interval in ms (default: 30000) */
   heartbeatInterval?: number;
   
@@ -81,6 +86,7 @@ export interface RealtimeServerConfig {
   
   /** Tables allowed for realtime (default: all configured tables) */
   allowedTables?: string[];
+  
 }
 
 export type RealtimeServerConfigResolved = Required<RealtimeServerConfig>;

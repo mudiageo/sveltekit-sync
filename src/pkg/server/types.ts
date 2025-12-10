@@ -12,11 +12,11 @@ export interface SyncTableConfig<T = any> {
 
 export interface SyncConfig {
   tables: Record<string, SyncTableConfig>;
-  // Global settings
-  batchSize?: number;
   realtime?: {
     enabled: boolean;
     hearbeatInterval: number;
     maxConnectionPerUser: number;
-  }
+  };
+  // Global settings
+  batchSize?: number;
 }

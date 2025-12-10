@@ -1,24 +1,18 @@
 import type { SyncOperation, SyncResult, Conflict, ServerAdapter } from '../types.js';
-
-import type { SyncConfig } from './types.js';
-import type { SyncTableConfig } from './types.js';
+import type { SyncConfig, SyncTableConfig } from './types.js';
 import { RealtimeServer } from '../realtime/server.js';
+import type { RequestEvent } from '@sveltejs/kit';
 
 export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
-  private realtimeServer: RealtimeServer || null = null;
+  private realtimeServer: RealtimeServer | null = null;
   
   constructor(
     private adapter: TAdapter,
     private config: SyncConfig,
-  ) { }
-  
-  attachRealtime(realtimeServer: RealtimeServer ): void {
-    this.realtimeServer = RealtimeServer;
+  ) { 
+    if (config.realtime) this.realtimeServer = new RealtimeServer(config.realtime);
   }
   
-  getRealtimeServer(): RealtimeServer || null {
-    return this.realtimeServer;
-  }
   
   // PUSH: Apply client changes to server
   async push(operations: SyncOperation[], userId: string): Promise<SyncResult> {
@@ -148,7 +142,7 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
     // Broadcast to connected realtime clients
     if(this.realtimeServer && synced.length > 0) {
       const syncedOps = operations.filter(op => synced.includes(op.id));
-      this.realtimeServer.broadcast(syncedOps, operations?[0].clientId)
+      this.realtimeServer.broadcast(syncedOps, operations?.[0].clientId)
     }
     return { success: true, synced, conflicts, errors };
   }
@@ -237,6 +231,43 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
         return 'conflict';
     }
   }
+  
+  createRealtimeHandlers() {
+    const realtimeConfig = this.config.realtime;
+    const realtimeServer = this.realtimeServer;
+    
+    async function GET(event: RequestEvent) {
+      const { request, url } = event;
+      
+      // Authenticate the request
+      const user = await realtimeConfig.authenticate();
+      if (!user) return new Response('Unauthorised', { status: 401 });
+      
+      const userId = user?.userId;
+      const clientId = url.searchParams.get('clientId') || user.clientId;
+      if (!clientId) return new Response('Missing clientId', { status: 400 })
+      
+      const tablesParam = url.searchParams.get('tables');
+      const tables = tablesParam ? tablesParam.split(',').filter(Boolean) : [];
+      
+      // Unique connection id
+      const connectionId = `${userId}-${clientId}-${Date.now()}`;
+      
+      return realtimeServer.createConnection(connectionId, userId, clientId, tables);
+       
+    }
+    
+    async function handle({ event, resolve }) {
+      const path = realtimeConfig.path ?? '/api/sync/realtime';
+      
+      if(event.url.pathname === path && event.request.method === 'GET') {
+        return  GET(event)
+      }
+      return resolve(event)
+    }
+    
+    return { GET, handle };
+  }
 
   // REAL-TIME SUPPORT
   async subscribeToChanges(
@@ -249,5 +280,23 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
     }
 
     return this.adapter.subscribe(tables, userId, callback);
+  }
+}
+
+
+/** 
+ * Create server sync engine with realtime handlers
+*/
+export function createServerSync({ adapter, config }) {
+  
+  const sync = new ServerSyncEngine(adapter, config);
+  
+  const { GET, handle } = sync.createRealtimeHandlers();
+  
+  return {
+    sync,
+    syncEngine: sync,
+    GET,
+    handle,
   }
 }
