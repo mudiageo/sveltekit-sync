@@ -2,13 +2,24 @@ import type { SyncOperation, SyncResult, Conflict, ServerAdapter } from '../type
 
 import type { SyncConfig } from './types.js';
 import type { SyncTableConfig } from './types.js';
+import { RealtimeServer } from '../realtime/server.js';
 
 export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
+  private realtimeServer: RealtimeServer || null = null;
+  
   constructor(
     private adapter: TAdapter,
-    private config: SyncConfig
+    private config: SyncConfig,
   ) { }
-
+  
+  attachRealtime(realtimeServer: RealtimeServer ): void {
+    this.realtimeServer = RealtimeServer;
+  }
+  
+  getRealtimeServer(): RealtimeServer || null {
+    return this.realtimeServer;
+  }
+  
   // PUSH: Apply client changes to server
   async push(operations: SyncOperation[], userId: string): Promise<SyncResult> {
     const synced: string[] = [];
@@ -134,6 +145,11 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
       await processBatch(this.adapter);
     }
 
+    // Broadcast to connected realtime clients
+    if(this.realtimeServer && synced.length > 0) {
+      const syncedOps = operations.filter(op => synced.includes(op.id));
+      this.realtimeServer.broadcast(syncedOps, operations?[0].clientId)
+    }
     return { success: true, synced, conflicts, errors };
   }
 

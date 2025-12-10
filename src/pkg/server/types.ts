@@ -14,5 +14,9 @@ export interface SyncConfig {
   tables: Record<string, SyncTableConfig>;
   // Global settings
   batchSize?: number;
-  enableRealtime?: boolean;
+  realtime?: {
+    enabled: boolean;
+    hearbeatInterval: number;
+    maxConnectionPerUser: number;
+  }
 }
