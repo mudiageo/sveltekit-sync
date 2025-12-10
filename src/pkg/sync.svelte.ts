@@ -1,6 +1,6 @@
 import type { Conflict, SyncConfig, SyncOperation, SyncStatus } from './types.js';
-import { RealtimeClient } from '../realtime/client.js'
-import { type RealtimeStatus as RTStatus } from '../realtime/types.js'
+import { RealtimeClient } from './realtime/client.js'
+import { type RealtimeStatus as RTStatus } from './realtime/types.js'
 
 // MULTI-TAB SYNC COORDINATOR
 class MultiTabCoordinator {
@@ -73,34 +73,35 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
 
     this.multiTab = new MultiTabCoordinator('sveltekit-sync');
     this.setupMultiTabSync();
+    
+    // Initialise realtime
+    if (typeof window !== 'undefined'){
+      const realtimeConfig = {
+        enabled: true,
+        endpoint: '/api/sync/realtime',
+        tables: [],
+        reconnectionIntrval: 1000,
+        maxReconnectInterval: 30000,
+        maxReconnectAttempts: 5,
+        heartbeatTimeout: 45000,
+        ...config.realtime,
+        onStatusChange: (status: RTStatus) => {
+          this.realtimeStatus = status;
+          this.handleRealtimeStatusChange(status);
+        },
+        onOperations: (operations: SyncOperation[]) => {
+          this.handleRealtimeOperations(operations)
+        },
+        onError: (error: Error) => {
+          console.error('Realtime error', error);
+          this.config.onError(error)
+        }
+      }
+      
+      this.realtimeClient = new RealtimeClient(realtimeConfig)
+    }
   }
   
-  // Initialise realtime client if enabled (default: true)
-  if(typeof window !== 'undefined'){
-    const realtimeConfig = {
-      enabled: true,
-      endpoint: '/api/sync/realtime',
-      tables: [],
-      reconnectionIntrval: 1000,
-      maxReconnectInterval; 30000,
-      maxReconnectAttempts; 5,
-      heartbeatTimeout: 45000,
-      ...config.realtime,
-      onStatusChange: (status: RTStatus) => {
-        this.realtimeStatus = status;
-        this.handleRealtimeStatusChange(status);
-      },
-      onOperations: (operations: SyncOperation[]) => {
-        this.handleRealtimeOperations(operations)
-      },
-      onError: (error: Error) => {
-        console.error('Realtime error');
-        this.config.onError(error)
-      }
-    }
-    
-    this.realtimeClient = new RealtimeClient(realtimeConfig)
-  }
 
   private setupMultiTabSync(): void {
     // Listen for changes from other tabs
@@ -151,7 +152,7 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
         //Update collection
         const collection = this.collections.get(op.table);
         
-        if (collection) await colelction.reload();
+        if (collection) await collection.reload();
       } catch (error) {
         console.error('Failed to apply realtime operation:', error);
       }
