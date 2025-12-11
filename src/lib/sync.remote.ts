@@ -58,31 +58,6 @@ export const pullChanges = query(
   }
 );
 
-// GET INITIAL DATA (First load optimization)
-export const getInitialData = query(
-  v.object({
-    tables: v.array(v.string())
-  }),
-  async ({ tables }) => {
-    const { request } = getRequestEvent()
-    const user = await getUser(request);
-    if (!user) {
-      throw new Error('Unauthorized');
-    }
-
-    // Get all data for specified tables efficiently
-    const data: Record<string, any[]> = {};
-
-    for (const tableName of tables) {
-      const operations = await syncEngine.pull(0, 'initial', user.id);
-      data[tableName] = operations
-        .filter(op => op.table === tableName)
-        .map(op => op.data);
-    }
-
-    return data;
-  }
-);
 
 // REALTIME SUBSCRIPTION (WebSocket/SSE)
 export const subscribeToSync = query(

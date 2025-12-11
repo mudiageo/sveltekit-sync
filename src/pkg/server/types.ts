@@ -1,3 +1,5 @@
+import type { RealtimeServerConfig } from '../realtime/types.js'
+
 export interface SyncTableConfig<T = any> {
   table: string;
   // Which columns to sync (omit sensitive data)
@@ -12,7 +14,7 @@ export interface SyncTableConfig<T = any> {
 
 export interface SyncConfig {
   tables: Record<string, SyncTableConfig>;
+  realtime?: RealtimeServerConfig;
   // Global settings
   batchSize?: number;
-  enableRealtime?: boolean;
 }
