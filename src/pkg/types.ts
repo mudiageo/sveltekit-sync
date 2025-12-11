@@ -47,7 +47,7 @@ export interface SyncConfig<TLocalDB = any, TRemoteDB = any> {
   conflictResolution?: 'client-wins' | 'server-wins' | 'manual' | 'last-write-wins';
   retryAttempts?: number;
   retryDelay?: number;
-  realtime?: RealtimeConfig;
+  realtime?: RealtimeClientConfig;
 
   // Callbacks
   onSync?: (status: SyncStatus) => void;
