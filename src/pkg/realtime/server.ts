@@ -202,7 +202,7 @@ export class RealtimeServer extends EventEmitter {
       timestamp: Date.now()
     };
     
-    for (const connectionId of this.connections.key()) {
+    for (const connectionId of this.connections.keys()) {
       this.sendToConnection(connectionId, event)
     }
   }
@@ -211,7 +211,7 @@ export class RealtimeServer extends EventEmitter {
    * Disconenct all clients
    */
   disconnectAll(): void {
-    for (const connectionId of this.connections.key()) {
+    for (const connectionId of this.connections.keys()) {
       this.removeConnection(connectionId)
     }
   }
@@ -305,7 +305,7 @@ export class RealtimeServer extends EventEmitter {
       // Cleanup stale conenctions
       if (this.config.connectionTimeout > 0) {
         const now = Date.now();
-        for (const [id, conn] of this.connections()) {
+        for (const [id, conn] of this.connections.entries()) {
           if (now - conn.lastActivity > this.config.connectionTimeout) {
             this.removeConnection(id);
           }
