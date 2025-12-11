@@ -248,13 +248,12 @@ export class RealtimeServer extends EventEmitter {
     
     this.connections.delete(connectionId);
     
-    const userConns = this.userConnections.get(connection.userId)
+    const userConns = this.userConnections.get(connection.userId);
     if (userConns) {
       userConns.delete(connectionId);
-      if (userConns === 0) {
-        this.userConnections.delete(connectionId);
+      if (userConns.size === 0) {
+        this.userConnections.delete(connection.userId);
       }
-      
     }
     this.emit('disconnected', connection)
   }
