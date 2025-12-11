@@ -1,5 +1,24 @@
 # @sveltekit-sync/core
 
+## 0.1.0
+
+### Minor Changes
+
+- c7c5000: Initial experimental prerelease
+- d372bbd: feat: add comprehensive test suite covering core sync engine, adapters, and server components
+- 62d566a: feat: make server sync-engihe database agnostic
+- b068caf: feat: implement realtime sync via Server-Sent Events (SSE) with polling fallback
+
+### Patch Changes
+
+- 11f541c: fix: add default field to exports in package.json
+- 89d2d05: chore: update README.md to indicate experimental status
+- 7deb466: fix: remove sync.remote.ts from package
+- c81bdb9: refactor: restructure directory and exports
+- 037291f: fix: improve authorization logic and add explicit .js extensions to imports
+- 7e985ad: fix: remove unused exports
+- 7331539: chore: add relevant permissions in release worklow
+
 ## 0.1.0-alpha.5
 
 ### Patch Changes
