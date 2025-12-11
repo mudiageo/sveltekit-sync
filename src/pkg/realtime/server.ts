@@ -196,7 +196,7 @@ export class RealtimeServer extends EventEmitter {
    * Send a custom event to all connections
    */
   sendtoAll<T>(type: string, data: T): void {
-    const event: RealtimeEvent<Y> = {
+    const event: RealtimeEvent<T> = {
       type,
       data,
       timestamp: Date.now()
