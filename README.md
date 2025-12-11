@@ -77,11 +77,11 @@ export const clientState = pgTable('client_state', {
 
 ```typescript
 // src/lib/server/sync.ts
-import type { SyncConfig } from '$pjg/types'
+import type { SyncConfig } from 'sveltekit-sync/server'
 import { db } from '$lib/server/db'
 import * as schema from '$lib/server/db/schema'
-import { createServerSync } from '$pkg/server/sync-engine';
-import { DrizzleAdapter } from '$pkg/adapters/drizzle';
+import { createServerSync } from 'sveltekit-sync/server';
+import { DrizzleAdapter } from 'sveltekit-sync/adapters/drizzle';
 
 // Create database adapter
 const adapter = new DrizzleAdapter({ db, schema })
