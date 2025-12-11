@@ -287,7 +287,7 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
 /** 
  * Create server sync engine with realtime handlers
 */
-export function createServerSync({ adapter, config }) {
+export function createServerSync({ adapter, config }: { adapter: ServerAdapter, config: SyncConfig }) {
   
   const sync = new ServerSyncEngine(adapter, config);
   
