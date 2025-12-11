@@ -240,7 +240,7 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
       const { request, url } = event;
       
       // Authenticate the request
-      const user = await realtimeConfig.authenticate();
+      const user = await realtimeConfig.authenticate(request);
       if (!user) return new Response('Unauthorised', { status: 401 });
       
       const userId = user?.userId;
