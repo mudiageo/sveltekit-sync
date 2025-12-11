@@ -533,7 +533,7 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
   }
   
   get realtime(): RealtimeClient | null {
-    return this.realtimeClient();
+    return this.realtimeClient;
   }
   
   enableRealtime(): void {
