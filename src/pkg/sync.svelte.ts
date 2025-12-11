@@ -80,7 +80,7 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
         enabled: true,
         endpoint: '/api/sync/realtime',
         tables: [],
-        reconnectionIntrval: 1000,
+        reconnectInterval: 1000,
         maxReconnectInterval: 30000,
         maxReconnectAttempts: 5,
         heartbeatTimeout: 45000,
