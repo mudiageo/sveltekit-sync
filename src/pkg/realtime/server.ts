@@ -316,7 +316,7 @@ export class RealtimeServer extends EventEmitter {
   
   private stopHeartbeat(): void {
     if (this.heartbeatInterval) {
-      clearinterval(this.heartbeatInterval)
+      clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
   }
