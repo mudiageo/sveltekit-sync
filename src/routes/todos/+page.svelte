@@ -11,11 +11,11 @@
 
   // Create derived state
   const completedTodos = $derived(
-    todosStore.filter(todo => todo.completed)
+   await todosStore.query().where(todo => todo.completed === true).get()
   );
   
   const activeTodos = $derived(
-    todosStore.filter(todo => !todo.completed)
+    await todosStore.query().where(todo => todo.completed === false).get()
   );
 
   const sortedTodos = $derived(
@@ -38,7 +38,7 @@
   async function toggleTodo(id: string) {
     const todo = todosStore.find(t => t.id === id);
     if (!todo) return;
-    
+    console.log(activeTodos)
     await todosStore.update(id, {
       completed: !todo.completed
     });
