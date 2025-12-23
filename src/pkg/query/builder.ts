@@ -48,7 +48,7 @@ export interface QueryResult<T> {
   hasMore?: boolean;
 }
 
-export class QueryBuilder<T extends Record<string, any>> {
+export class QueryBuilder<T extends Record<string, any> & { id: string }> {
   private collection: { data: T[]; delete: (id: string) => Promise<void>; update: (id: string, data: Partial<T>) => Promise<T> };
   private conditions: StoredCondition<T>[] = [];
   private orderByClauses: StoredOrderBy<T>[] = [];
