@@ -579,7 +579,7 @@ export class CollectionStore<T extends Record<string, any>> {
   }
   
   /**
-   * Gettyped firld references for building queries
+   * Get typed field references for building queries
    * Usage: todosStore.$.completed.eq(false)
    */
   get $(): FieldsProxy<T> {
@@ -587,7 +587,7 @@ export class CollectionStore<T extends Record<string, any>> {
   }
   
   /**
-   * Alias for $ - get typed firld references
+   * Alias for $ - get typed field references
    * Usage: todosStore.fields.completed.eq(false)
    */
   get fields(): FieldsProxy<T> {
@@ -596,7 +596,7 @@ export class CollectionStore<T extends Record<string, any>> {
 
   /**
    * Create a new query builder for this collection
-   * Supports multiple quety syntaxes
+   * Supports multiple query syntaxes
    * 1. Callback (full type inference):
    *    .where(todo => todo.completed === false)
    * 2. Object syntax (simple equality): 
