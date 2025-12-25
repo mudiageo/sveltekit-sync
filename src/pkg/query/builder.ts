@@ -173,7 +173,7 @@ export class QueryBuilder<T extends Record<string, any> & { id: string }> {
    * Get first matching result
    */
   async first(): Promise<T | null> {
-    const results = await this.limit(1).get();
+    const results = await this.clone().limit(1).get();
     return results[0] ?? null;
   }
 
@@ -268,16 +268,25 @@ export class QueryBuilder<T extends Record<string, any> & { id: string }> {
   }
 
   async min<K extends keyof T>(field: K): Promise<T[K] | null> {
-    const results = await this.orderBy(field, 'asc').limit(1).get();
+    const results = await this.clone().orderBy(field, 'asc').limit(1).get();
     return results[0]?.[field] ?? null;
   }
 
   async max<K extends keyof T>(field: K): Promise<T[K] | null> {
-    const results = await this.orderBy(field as any, 'desc').limit(1).get();
+    const results = await this.clone().orderBy(field as any, 'desc').limit(1).get();
     return results[0]?.[field] ?? null;
   }
 
   // Private methods
+  
+  private clone(): QueryBuilder<T> {
+    const newBuilder = new QueryBuilder<T>(this.collection);
+    newBuilder.conditions = [...this.conditions];
+    newBuilder.orderByClauses = [...this.orderByClauses];
+    newBuilder.limitCount = this.limitCount;
+    newBuilder.offsetCount = this.offsetCount;
+    return newBuilder;
+  }
 
   private detectConditionType(condition: WhereInput<T>): StoredCondition<T>['type'] {
     if (typeof condition === 'function') {
