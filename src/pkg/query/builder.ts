@@ -268,7 +268,7 @@ export class QueryBuilder<T extends Record<string, any> & { id: string }> {
   }
 
   async min<K extends keyof T>(field: K): Promise<T[K] | null> {
-    const results = await this.orderBy(field as any, 'asc').limit(1).get();
+    const results = await this.orderBy(field, 'asc').limit(1).get();
     return results[0]?.[field] ?? null;
   }
 
