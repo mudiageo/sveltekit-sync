@@ -263,7 +263,8 @@ export class QueryBuilder<T extends Record<string, any> & { id: string }> {
   async avg(field: keyof T): Promise<number> {
     const results = await this.get();
     if (results.length === 0) return 0;
-    return this.sum(field).then(sum => sum / results.length);
+    const sum = results.reduce((acc, item) => acc + (Number(item[field]) || 0), 0);
+    return sum / results.length;
   }
 
   async min<K extends keyof T>(field: K): Promise<T[K] | null> {
