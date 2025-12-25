@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { QueryBuilder } from '$pkg/query/builder.js';
 import { 
-  eq, gt, gte, inArray, contains, and, or, not,
-  ne, lt, lte, between, isNull, isNotNull 
+  eq, gt, gte, inArray, notInAresy, contains, and, or, not, startsWith, endsWith, ne, lt, lte, between, isNull, isNotNull 
 } from '$pkg/query/operators.js';
 import { createFieldsProxy } from '$pkg/query/field-proxy.js';
 
@@ -122,8 +121,8 @@ describe('Hybrid QueryBuilder', () => {
 
   it('returns first, last, count, exists', async () => {
     const builder = new QueryBuilder<Todo>(collection);
-    expect((await builder.where({ completed: false }).last())?.id).toBe('4');
     expect((await builder.where({ completed: false }).first())?.id).toBe('1');
+    expect((await builder.where({ completed: false }).last())?.id).toBe('4');
     expect(await builder.where({ tags: contains('dev') }).count()).toBe(2);
     expect(await builder.where({ text: 'Nope' }).exists()).toBe(false);
   });
@@ -159,4 +158,68 @@ describe('Hybrid QueryBuilder', () => {
     expect(await builder.where({ id: inArray(['1', '5']) }).pluck('id')).toEqual(['1', '5']);
     expect(await builder.where({ priority: notIn([3, 5, 6]) }).pluck('id')).toEqual(['1', '5']);
   });
+
+
+  it('supports contains, startsWith, endsWith string operators', async () => {
+    // contains
+    let builder = new QueryBuilder<Todo>(collection);
+    let result = await builder.where({ text: contains('milk') }).get();
+    expect(result.map(r => r.id)).toEqual(['4']);
+  
+    // startsWith
+    builder = new QueryBuilder<Todo>(collection);
+    result = await builder.where({ text: startsWith('Urg') }).get();
+    expect(result.map(r => r.id)).toEqual(['1']);
+  
+    // endsWith
+    builder = new QueryBuilder<Todo>(collection);
+    result = await builder.where({ text: endsWith('mail') }).get();
+    expect(result.map(r => r.id)).toEqual(['1']);
+  });
+  
+  it('supports between for numbers', async () => {
+    const builder = new QueryBuilder<Todo>(collection);
+    const result = await builder.where({ createdAt: between(80, 120) }).get();
+    expect(result.map(r => r.id)).toEqual(['1', '4']);
+  });
+  
+  it('supports isNull and isNotNull', async () => {
+    const builder = new QueryBuilder<Todo>(collection);
+    const nullAssignee = await builder.where({ assignee: isNull() }).get();
+    expect(nullAssignee.map(r => r.id)).toContain('2');
+    expect(nullAssignee.map(r => r.id)).toContain('3');
+    const notNullAssignee = await builder.where({ assignee: isNotNull() }).get();
+    expect(notNullAssignee.map(r => r.id)).toContain('1');
+    expect(notNullAssignee.map(r => r.id)).toContain('4');
+    expect(notNullAssignee.map(r => r.id)).toContain('5');
+  });
+  
+  it('creates and uses a FieldProxy for every field and method', async () => {
+    const fields = createFieldsProxy<Todo>();
+    // eq
+    expect(fields.completed.eq(true)).toMatchObject({ fieldName: 'completed' });
+    // ne
+    expect(fields.text.ne('test')).toMatchObject({ fieldName: 'text' });
+    // gt/gte/lt/lte
+    expect(fields.priority.gt(1)).toMatchObject({ fieldName: 'priority' });
+    expect(fields.priority.gte(1)).toMatchObject({ fieldName: 'priority' });
+    expect(fields.priority.lt(10)).toMatchObject({ fieldName: 'priority' });
+    expect(fields.priority.lte(10)).toMatchObject({ fieldName: 'priority' });
+    // in/notIn
+    expect(fields.tags.in(['dev'])).toMatchObject({ fieldName: 'tags' });
+    expect(fields.tags.notIn(['dev'])).toMatchObject({ fieldName: 'tags' });
+    // contains/startsWith/endsWith for strings
+    expect(fields.text.contains('abc')).toMatchObject({ fieldName: 'text' });
+    expect(fields.text.startsWith('a')).toMatchObject({ fieldName: 'text' });
+    expect(fields.text.endsWith('b')).toMatchObject({ fieldName: 'text' });
+    // between
+    expect(fields.createdAt.between(1, 2)).toMatchObject({ fieldName: 'createdAt' });
+    // isNull/isNotNull
+    expect(fields.assignee.isNull()).toMatchObject({ fieldName: 'assignee' });
+    expect(fields.assignee.isNotNull()).toMatchObject({ fieldName: 'assignee' });
+    // ordering
+    expect(fields.priority.asc()).toMatchObject({ fieldName: 'priority', direction: 'asc' });
+    expect(fields.priority.desc()).toMatchObject({ fieldName: 'priority', direction: 'desc' });
+  });
+  
 });
