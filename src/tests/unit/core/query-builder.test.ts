@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { QueryBuilder } from '$pkg/query/builder.js';
 import { 
-  eq, gt, gte, inArray, notInAresy, contains, and, or, not, startsWith, endsWith, ne, lt, lte, between, isNull, isNotNull 
+  eq, gt, gte, inArray, notInArray, contains, and, or, not, startsWith, endsWith, ne, lt, lte, between, isNull, isNotNull 
 } from '$pkg/query/operators.js';
 import { createFieldsProxy } from '$pkg/query/field-proxy.js';
 
@@ -31,6 +31,10 @@ let collection: {
   delete: (id: string) => Promise<void>, 
   update: (id: string, data: Partial<Todo>) => Promise<Todo> 
 };
+
+function createBuilder() {
+  return new QueryBuilder<Todo>(collection)
+}
 
 beforeEach(() => {
   const todos = getTodos();
@@ -123,7 +127,9 @@ describe('Hybrid QueryBuilder', () => {
     const builder = new QueryBuilder<Todo>(collection);
     expect((await builder.where({ completed: false }).first())?.id).toBe('1');
     expect((await builder.where({ completed: false }).last())?.id).toBe('4');
-    expect(await builder.where({ tags: contains('dev') }).count()).toBe(2);
+    
+    const query = new QueryBuilder<Todo>(collection);
+    expect(await query.where({ tags: contains('dev') }).count()).toBe(2);
     expect(await builder.where({ text: 'Nope' }).exists()).toBe(false);
   });
 
@@ -131,8 +137,9 @@ describe('Hybrid QueryBuilder', () => {
     const builder = new QueryBuilder<Todo>(collection);
     expect(await builder.where({ completed: false }).sum('priority')).toBe(7 + 6 + 3);
     expect(await builder.where({ completed: false }).avg('priority')).toBe((7 + 6 + 3) / 3);
-    expect(await builder.min('createdAt')).toBe(30);
-    expect(await builder.max('priority')).toBe(9);
+
+    expect(await createBuilder().min('createdAt')).toBe(30);
+    expect(await createBuilder().max('priority')).toBe(9);
   });
 
   it('can delete and update with query', async () => {
@@ -152,11 +159,12 @@ describe('Hybrid QueryBuilder', () => {
   it('supports null/notNull, between, in, notIn', async () => {
     const builder = new QueryBuilder<Todo>(collection);
     expect((await builder.where({ assignee: isNull() }).count())).toBe(2);
-    expect((await builder.where({ assignee: isNotNull() }).count())).toBe(3);
+    
+    expect((await createBuilder().where({ assignee: isNotNull() }).count())).toBe(3);
 
-    expect(await builder.where({ createdAt: between(70, 130) }).pluck('id')).toEqual(['1', '2', '3', '4']);
-    expect(await builder.where({ id: inArray(['1', '5']) }).pluck('id')).toEqual(['1', '5']);
-    expect(await builder.where({ priority: notIn([3, 5, 6]) }).pluck('id')).toEqual(['1', '5']);
+    expect(await createBuilder().where({ createdAt: between(70, 130) }).pluck('id')).toEqual(['1', '2', '3', '4']);
+    expect(await createBuilder().where({ id: inArray(['1', '5']) }).pluck('id')).toEqual(['1', '5']);
+    expect(await createBuilder().where({ priority: notInArray([3, 5, 6]) }).pluck('id')).toEqual(['1', '5']);
   });
 
 
@@ -188,10 +196,13 @@ describe('Hybrid QueryBuilder', () => {
     const nullAssignee = await builder.where({ assignee: isNull() }).get();
     expect(nullAssignee.map(r => r.id)).toContain('2');
     expect(nullAssignee.map(r => r.id)).toContain('3');
-    const notNullAssignee = await builder.where({ assignee: isNotNull() }).get();
-    expect(notNullAssignee.map(r => r.id)).toContain('1');
-    expect(notNullAssignee.map(r => r.id)).toContain('4');
-    expect(notNullAssignee.map(r => r.id)).toContain('5');
+
+    const notNullAssignee = await createBuilder().where({ assignee: isNotNull() }).get();
+    
+    const notNullAssigneeIds = notNullAssignee.map(r => r.id);
+    expect(notNullAssigneeIds).toContain('1');
+    expect(notNullAssigneeIds).toContain('4');
+    expect(notNullAssigneeIds).toContain('5');
   });
   
   it('creates and uses a FieldProxy for every field and method', async () => {
