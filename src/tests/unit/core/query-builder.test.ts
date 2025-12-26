@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { QueryBuilder } from '$pkg/query/builder.js';
+import { QueryBuilder } from '$pkg/client/query/builder.js';
 import { 
   eq, gt, gte, inArray, notInArray, contains, and, or, not, startsWith, endsWith, ne, lt, lte, between, isNull, isNotNull 
-} from '$pkg/query/operators.js';
-import { createFieldsProxy } from '$pkg/query/field-proxy.js';
+} from '$pkg/client/query/operators.js';
+import { createFieldsProxy } from '$pkg/client/query/field-proxy.js';
 
 // Mock collection store
 interface Todo {

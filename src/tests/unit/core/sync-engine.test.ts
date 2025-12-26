@@ -7,7 +7,7 @@
  * @see https://sveltest.dev/docs/testing-patterns
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SyncEngine, CollectionStore } from '$pkg/sync.svelte.js';
+import { SyncEngine, CollectionStore } from '$pkg/client/sync.svelte.js';
 import type { SyncConfig, Conflict } from '$pkg/types.js';
 import { 
 	createMockLocalAdapter, 

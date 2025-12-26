@@ -1,6 +1,6 @@
-import type { Conflict, SyncConfig, SyncOperation, SyncStatus } from './types.js';
-import { RealtimeClient } from './realtime/client.js'
-import { type RealtimeStatus as RTStatus } from './realtime/types.js'
+import type { Conflict, SyncConfig, SyncOperation, SyncStatus } from '../types.js';
+import { RealtimeClient } from '../realtime/client.js'
+import { type RealtimeStatus as RTStatus } from '../realtime/types.js'
 import { QueryBuilder } from './query/builder.js'
 import { createFieldsProxy, type FieldsProxy } from './query/field-proxy.js'
 
