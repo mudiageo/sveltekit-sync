@@ -1,6 +1,9 @@
 import type { Conflict, SyncConfig, SyncOperation, SyncStatus } from './types.js';
 import { RealtimeClient } from './realtime/client.js'
 import { type RealtimeStatus as RTStatus } from './realtime/types.js'
+import { QueryBuilder } from './query/builder.js'
+import { createFieldsProxy, type FieldsProxy } from './query/field-proxy.js'
+
 
 // MULTI-TAB SYNC COORDINATOR
 class MultiTabCoordinator {
@@ -561,15 +564,53 @@ export class CollectionStore<T extends Record<string, any>> {
   private engine: SyncEngine;
   private tableName: string;
 
-  // Make these public and directly accessible for reactivity
   data = $state<T[]>([]);
   isLoading = $state(false);
   error = $state<Error | null>(null);
   private _initialized = $state(false);
-
+  
+  private _fields: FieldsProxy<T>;
+  
+  
   constructor(engine: SyncEngine, tableName: string) {
     this.engine = engine;
     this.tableName = tableName;
+    this._fields = createFieldsProxy<T>();
+  }
+  
+  /**
+   * Get typed field references for building queries
+   * Usage: todosStore.$.completed.eq(false)
+   */
+  get $(): FieldsProxy<T> {
+    return this._fields;
+  }
+  
+  /**
+   * Alias for $ - get typed field references
+   * Usage: todosStore.fields.completed.eq(false)
+   */
+  get fields(): FieldsProxy<T> {
+    return this._fields;
+  }
+
+  /**
+   * Create a new query builder for this collection
+   * Supports multiple query syntaxes
+   * 1. Callback (full type inference):
+   *    .where(todo => todo.completed === false)
+   * 2. Object syntax (simple equality): 
+   *    .where({ completed: false })
+   * 3. Object with operators:
+   *    .where({ priority: gte(5) })
+   * 4. Proxy callback:
+   *    .where(f => f.completed.eq(false))
+   * 5. Field condition:
+   *    .where(fields.completed.eq(false))
+   * @returns A new QueryBuilder instance
+   */
+  query(): QueryBuilder<T> {
+    return new QueryBuilder<T>(this);
   }
 
   get count(): number {
@@ -634,6 +675,7 @@ export class CollectionStore<T extends Record<string, any>> {
       throw error;
     }
   }
+  
 
   async findOne(id: string): Promise<T | null> {
     try {
