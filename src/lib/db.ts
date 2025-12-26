@@ -1,4 +1,4 @@
-import { SyncEngine } from '$pkg/sync.svelte';
+import { SyncEngine } from '$pkg/client/sync.svelte';
 import { IndexedDBAdapter } from '$pkg/adapters/indexeddb';
 import { pushChanges, pullChanges } from '$lib/sync.remote';
 import { browser } from '$app/environment';

@@ -1,5 +1,5 @@
 // Core sync engine
-export { SyncEngine, CollectionStore } from './sync.svelte.js';
+export { SyncEngine, CollectionStore } from './client/sync.svelte.js';
 
 // Types
 export type {
@@ -14,17 +14,17 @@ export type {
   ClientAdapter
 } from './types.js';
 
-export { QueryBuilder, type QueryResult } from './query/index.js';
+export { QueryBuilder, type QueryResult } from './client/query/index.js';
 export {
   eq, ne, gt, gte, lt, lte,
   inArray, notInArray,
   contains, startsWith, endsWith,
   between, isNull, isNotNull,
   and, or, not
-} from './query/index.js';
+} from './client/query/index.js';
 export type {
   FieldsProxy,
   FieldReference,
   FieldCondition,
   QueryOperator
-} from './query/index.js';
+} from './client/query/index.js';
