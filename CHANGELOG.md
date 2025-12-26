@@ -1,5 +1,11 @@
 # @sveltekit-sync/core
 
+## 0.2.0
+
+### Minor Changes
+
+- c2c972d: feat: fluent query api for collection store
+
 ## 0.1.0
 
 ### Minor Changes
