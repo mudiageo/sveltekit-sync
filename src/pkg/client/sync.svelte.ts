@@ -3,7 +3,7 @@ import { RealtimeClient } from '../realtime/client.js'
 import { type RealtimeStatus as RTStatus } from '../realtime/types.js'
 import { QueryBuilder } from './query/builder.js'
 import { createFieldsProxy, type FieldsProxy } from './query/field-proxy.js'
-
+import { PresenceStore, type User } from './presence.svelte.js';
 
 // MULTI-TAB SYNC COORDINATOR
 class MultiTabCoordinator {
@@ -570,7 +570,7 @@ export class CollectionStore<T extends Record<string, any>> {
   private _initialized = $state(false);
   
   private _fields: FieldsProxy<T>;
-  
+  private presenceStore: PresenceStore<T> | null = null;
   
   constructor(engine: SyncEngine, tableName: string) {
     this.engine = engine;
@@ -612,6 +612,22 @@ export class CollectionStore<T extends Record<string, any>> {
   query(): QueryBuilder<T> {
     return new QueryBuilder<T>(this);
   }
+  
+  /**
+  * Enable presence/awareness for this collection
+  */
+  presence(config: { user: User; custom?: any }): PresenceStore<any> {
+    if (!this.presenceStore) {
+      this.presenceStore = new PresenceStore(
+        this.engine.realtime,
+        this.tableName,
+        config.user,
+        config.custom
+      );
+    }
+    return this.presenceStore;
+  }
+
 
   get count(): number {
     return this.data.length;
