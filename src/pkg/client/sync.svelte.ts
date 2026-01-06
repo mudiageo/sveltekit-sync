@@ -144,9 +144,12 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
           case 'insert':
             await this.config.local.adapter.insert(op.table, op.data);
             break;
-          case 'update':
-            await this.config.local.adapter.update(op.table, op.data.id, op.data);
+          case 'update': {
+            const existing = await this.config.local.adapter.findOne(op.table, op.data.id);
+            const merged = existing ? { ...existing, ...op.data } : op.data;
+            await this.config.local.adapter.update(op.table, op.data.id, merged);
             break;
+          }
           case 'delete':
             await this.config.local.adapter.delete(op.table, op.data.id);
             break;
@@ -221,9 +224,12 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
         try {
           switch (op.operation) {
             case 'insert':
-            case 'update':
-              await this.config.local.adapter.update(op.table, op.data.id, op.data);
+            case 'update': {
+              const existing = await this.config.local.adapter.findOne(op.table, op.data.id);
+              const merged = existing ? { ...existing, ...op.data } : op.data;
+              await this.config.local.adapter.update(op.table, op.data.id, merged);
               break;
+            }
             case 'delete':
               await this.config.local.adapter.delete(op.table, op.data.id);
               break;
@@ -290,7 +296,7 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
 
     const current = await this.config.local.adapter.findOne(table, id);
     const version = (current?._version || 0) + 1;
-    const record = { ...data, id, _version: version, _updatedAt: new Date() };
+    const record = { ...current, ...data, id, _version: version, _updatedAt: new Date() };
 
     await this.config.local.adapter.update(table, id, record);
 
@@ -431,9 +437,12 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
           case 'insert':
             await this.config.local.adapter.insert(op.table, op.data);
             break;
-          case 'update':
-            await this.config.local.adapter.update(op.table, op.data.id, op.data);
+          case 'update': {
+            const existing = await this.config.local.adapter.findOne(op.table, op.data.id);
+            const merged = existing ? { ...existing, ...op.data } : op.data;
+            await this.config.local.adapter.update(op.table, op.data.id, merged);
             break;
+          }
           case 'delete':
             await this.config.local.adapter.delete(op.table, op.data.id);
             break;
