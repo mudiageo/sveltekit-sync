@@ -448,6 +448,156 @@ presence.updateCursor({ x: 100, y: 100 });
 presence.destroy();
 ```
 
+## Hooks & Utilities
+
+### usePresence Hook
+
+The `usePresence` hook provides a simplified Svelte 5 runes-compatible API:
+
+```svelte
+<script lang="ts">
+  import { usePresence } from 'sveltekit-sync';
+  
+  const channel = syncEngine.channel('doc:123', { presence: true }, currentUser);
+  
+  // Create presence hook with auto-tracking
+  const presence = usePresence(channel, currentUser, {
+    customState: { editing: null },
+    trackCursor: true,      // Auto-track mouse position
+    trackSelection: true,   // Auto-track text selection
+    idleTimeout: 300000     // 5 minutes
+  });
+
+  // Reactive state (automatically updates)
+  const collaborators = $derived(presence.others);
+  const onlineCount = $derived(presence.onlineCount);
+
+  // Actions
+  function startEditing(noteId: string) {
+    presence.updateCustom({ editing: noteId });
+  }
+
+  // Follow another user
+  const unfollow = presence.follow('user-456');
+  
+  // Cleanup
+  onMount(() => {
+    return () => presence.destroy();
+  });
+</script>
+
+<div>
+  <p>{onlineCount} users online</p>
+  {#each collaborators as collab}
+    <Avatar user={collab.user} status={collab.status} />
+  {/each}
+</div>
+```
+
+### useCursorTracking
+
+Automatically track and display cursor positions:
+
+```svelte
+<script lang="ts">
+  import { usePresence, useCursorTracking } from 'sveltekit-sync';
+  
+  const presence = usePresence(channel, currentUser);
+  
+  let canvasElement: HTMLElement;
+  const cursorTracking = useCursorTracking(presence, {
+    container: canvasElement,
+    throttle: 50  // Update every 50ms
+  });
+
+  onMount(() => {
+    cursorTracking.startTracking();
+    return () => cursorTracking.stopTracking();
+  });
+
+  const cursors = $derived(cursorTracking.cursors);
+</script>
+
+<div bind:this={canvasElement} class="canvas">
+  {#each [...cursors.values()] as { user, position }}
+    <div 
+      class="cursor"
+      style="left: {position.x}px; top: {position.y}px; border-color: {user.color}"
+    >
+      <span class="cursor-label">{user.name}</span>
+    </div>
+  {/each}
+</div>
+```
+
+### useSelectionTracking
+
+Track text selections in collaborative editors:
+
+```svelte
+<script lang="ts">
+  import { usePresence, useSelectionTracking } from 'sveltekit-sync';
+  
+  const presence = usePresence(channel, currentUser);
+  
+  let editorElement: HTMLElement;
+  const selectionTracking = useSelectionTracking(presence, {
+    element: editorElement,
+    throttle: 100
+  });
+
+  onMount(() => {
+    selectionTracking.startTracking();
+    return () => selectionTracking.stopTracking();
+  });
+
+  const selections = $derived(selectionTracking.selections);
+</script>
+
+<div bind:this={editorElement} contenteditable>
+  {#each [...selections.values()] as { user, selection }}
+    <div 
+      class="selection-highlight"
+      style="background-color: {user.color}40"
+    >
+      {selection.text}
+    </div>
+  {/each}
+</div>
+```
+
+### useWhoIsHere
+
+Simple "who's online" display:
+
+```svelte
+<script lang="ts">
+  import { usePresence, useWhoIsHere } from 'sveltekit-sync';
+  
+  const presence = usePresence(channel, currentUser);
+  const whoIsHere = useWhoIsHere(presence);
+
+  const { users, avatars, count, onlineCount, isAlone } = whoIsHere;
+</script>
+
+<div class="who-is-here">
+  {#if isAlone}
+    <p>You're the only one here</p>
+  {:else}
+    <p>{onlineCount} people online</p>
+    <div class="avatars">
+      {#each avatars as { user, color }}
+        <div class="avatar" style="background-color: {color}">
+          {user.name[0]}
+        </div>
+      {/each}
+    </div>
+  {/if}
+</div>
+```
+
+
+
 ## Troubleshooting
 
 ### Presence not updating
