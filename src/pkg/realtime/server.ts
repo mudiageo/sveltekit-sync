@@ -4,9 +4,13 @@ import type {
   RealtimeServerConfig, 
   RealtimeServerConfigResolved,
   RealtimeConnection,
-  RealtimeEvent
+  RealtimeEvent,
+  PresenceState,
+  ClientMessage,
+  PresenceEvent
 } from './types.js';
 import { EventEmitter } from './event-emitter.js';
+import { EphemeralStore, type EphemeralEntry } from './ephemeral-store.js';
 
 /**
  * Server-side realtime connection manager.
@@ -16,12 +20,33 @@ export class RealtimeServer extends EventEmitter {
   private config: RealtimeServerConfigResolved;
   private connections: Map<string, RealtimeConnection> = new Map();
   private userConnections: Map<string, Set<string>> = new Map();
+  private channelSubscriptions: Map<string, Set<string>> = new Map(); // channel -> connectionIds
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private encoder = new TextEncoder();
+  
+  // Ephemeral stores
+  private presenceStore: EphemeralStore<PresenceState>;
+  private ephemeralStore: EphemeralStore;
 
   constructor(config: RealtimeServerConfig = {}) {
     super();
     this.config = this.resolveConfig(config);
+    
+    // Initialize ephemeral stores
+    this.presenceStore = new EphemeralStore<PresenceState>({
+      ttl: this.config.presenceTtl ?? 60000,
+      onExpire: (entry) => this.handlePresenceExpire(entry)
+    });
+    
+    this.ephemeralStore = new EphemeralStore({
+      ttl: this.config.ephemeralTtl ?? 60000
+    });
+    
+    // Set up internal event handlers for presence
+    this.setupPresenceHandlers();
+    
+    // Set up generic ephemeral data handlers
+    this.setupEphemeralHandlers();
     
     if (this.config.enabled && this.config.heartbeatInterval > 0) {
       this.startHeartbeat();
@@ -36,6 +61,8 @@ export class RealtimeServer extends EventEmitter {
       maxConnectionsPerUser: config.maxConnectionsPerUser ?? 5,
       authenticate: config.authenticate ?? (async () => null),
       allowedTables: config.allowedTables ?? [],
+      presenceTtl: config.presenceTtl ?? 60000,
+      ephemeralTtl: config.ephemeralTtl ?? 60000,
     };
   }
 
@@ -222,7 +249,179 @@ export class RealtimeServer extends EventEmitter {
   destroy(): void {
     this.stopHeartbeat();
     this.disconnectAll();
+    this.presenceStore.destroy();
+    this.ephemeralStore.destroy();
     this.removeAllListeners();
+  }
+  
+  /**
+   * Handle client messages (POST requests)
+   */
+  handleClientMessage(message: ClientMessage, userId: string, clientId: string): void {
+    if (message.type === 'presence') {
+      this.handlePresenceMessage(message.channel, message.data as PresenceState, userId, clientId);
+    } else if (message.type === 'ephemeral') {
+      this.handleEphemeralMessage(message.channel, message.data, userId, clientId);
+    }
+  }
+  
+  /**
+   * Join a channel
+   */
+  joinChannel(connectionId: string, channel: string): void {
+    if (!this.channelSubscriptions.has(channel)) {
+      this.channelSubscriptions.set(channel, new Set());
+    }
+    this.channelSubscriptions.get(channel)!.add(connectionId);
+    
+    // Send current presence state to the joining client
+    const presenceStates = this.presenceStore.getByChannel(channel);
+    if (presenceStates.length > 0) {
+      const connection = this.connections.get(connectionId);
+      if (connection) {
+        const event: PresenceEvent = {
+          type: 'sync',
+          channel,
+          presence: presenceStates.map(e => e.data),
+          timestamp: Date.now()
+        };
+        
+        this.sendToConnection(connectionId, {
+          type: 'presence:sync',
+          data: event,
+          timestamp: Date.now()
+        });
+      }
+    }
+  }
+  
+  /**
+   * Leave a channel
+   */
+  leaveChannel(connectionId: string, channel: string): void {
+    const subscribers = this.channelSubscriptions.get(channel);
+    if (subscribers) {
+      subscribers.delete(connectionId);
+      if (subscribers.size === 0) {
+        this.channelSubscriptions.delete(channel);
+      }
+    }
+  }
+  
+  /**
+   * Setup presence handlers
+   */
+  private setupPresenceHandlers(): void {
+    // Presence handlers are called when presence updates are received
+    // They update the store and broadcast to other clients
+  }
+  
+  /**
+   * Setup ephemeral data handlers
+   */
+  private setupEphemeralHandlers(): void {
+    // Ephemeral handlers are called when custom ephemeral data is received
+    // They update the store and broadcast to other clients
+  }
+  
+  /**
+   * Handle presence message from client
+   */
+  private handlePresenceMessage(
+    channel: string,
+    presence: PresenceState,
+    userId: string,
+    clientId: string
+  ): void {
+    const key = `${channel}:${userId}:${clientId}`;
+    
+    // Determine event type
+    const existingEntry = this.presenceStore.getEntry(key);
+    const eventType = !existingEntry ? 'join' : 'update';
+    
+    // Update presence in store
+    this.presenceStore.set(key, {
+      data: { ...presence, userId, clientId, lastUpdated: Date.now() },
+      userId,
+      clientId,
+      channel
+    });
+    
+    // Broadcast to other clients in the channel
+    this.broadcastToChannel(channel, `presence:${eventType}`, {
+      type: eventType,
+      channel,
+      presence: { ...presence, userId, clientId, lastUpdated: Date.now() },
+      timestamp: Date.now()
+    } as PresenceEvent, clientId);
+  }
+  
+  /**
+   * Handle ephemeral message from client
+   */
+  private handleEphemeralMessage(
+    channel: string,
+    data: any,
+    userId: string,
+    clientId: string
+  ): void {
+    // Store ephemeral data
+    const key = `${channel}:${userId}:${clientId}:${Date.now()}`;
+    this.ephemeralStore.set(key, {
+      data,
+      userId,
+      clientId,
+      channel
+    });
+    
+    // Broadcast to other clients in the channel
+    this.broadcastToChannel(channel, 'ephemeral:update', {
+      channel,
+      event: data.event || 'update',
+      data: data.data || data,
+      userId,
+      clientId,
+      timestamp: Date.now()
+    }, clientId);
+  }
+  
+  /**
+   * Handle presence expiration (TTL expired)
+   */
+  private handlePresenceExpire(entry: EphemeralEntry<PresenceState>): void {
+    // Broadcast leave event
+    this.broadcastToChannel(entry.channel, 'presence:leave', {
+      type: 'leave',
+      channel: entry.channel,
+      presence: entry.data,
+      timestamp: Date.now()
+    } as PresenceEvent);
+  }
+  
+  /**
+   * Broadcast message to all connections in a channel
+   */
+  private broadcastToChannel(
+    channel: string,
+    eventType: string,
+    data: any,
+    excludeClientId?: string
+  ): void {
+    const subscribers = this.channelSubscriptions.get(channel);
+    if (!subscribers) return;
+    
+    const event: RealtimeEvent = {
+      type: eventType,
+      data,
+      timestamp: Date.now()
+    };
+    
+    for (const connectionId of subscribers) {
+      const connection = this.connections.get(connectionId);
+      if (connection && (!excludeClientId || connection.clientId !== excludeClientId)) {
+        this.sendToConnection(connectionId, event);
+      }
+    }
   }
   
   private addConnection(connection: RealtimeConnection): void {

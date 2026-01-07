@@ -174,6 +174,54 @@ export class RealtimeClient extends EventEmitter {
     this.disconnect();
     this.removeAllListeners();
   }
+  
+  /**
+   * Send a message to the server (POST request)
+   */
+  async send<T = any>(message: T): Promise<boolean> {
+    if (!this.config.enabled) {
+      console.warn('Realtime is disabled');
+      return false;
+    }
+    
+    try {
+      const url = new URL(this.config.endpoint, window.location.origin);
+      
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(message),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${response.statusText}`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      this.emit('error', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Join a channel
+   */
+  async joinChannel(channel: string): Promise<void> {
+    // Channel joining is handled via SSE connection
+    // This is a no-op for now, but can be extended for explicit channel subscriptions
+  }
+  
+  /**
+   * Leave a channel
+   */
+  async leaveChannel(channel: string): Promise<void> {
+    // Channel leaving is handled via SSE connection cleanup
+    // This is a no-op for now, but can be extended for explicit channel unsubscriptions
+  }
 
 
   private buildEndpointUrl(): string {

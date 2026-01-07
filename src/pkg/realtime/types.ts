@@ -5,7 +5,12 @@ export type RealtimeEventType =
   | 'connected'       // Connection established
   | 'heartbeat'       // Keep-alive ping
   | 'error'           // Error occurred
-  | 'reconnect';      // Server requesting reconnect
+  | 'reconnect'       // Server requesting reconnect
+  | 'presence:sync'   // Full presence state for a channel
+  | 'presence:join'   // User joined
+  | 'presence:update' // User updated their presence
+  | 'presence:leave'  // User left
+  | 'ephemeral:update'; // Generic ephemeral data update
 
 export interface RealtimeEvent<T = any> {
   type: RealtimeEventType;
@@ -87,6 +92,11 @@ export interface RealtimeServerConfig {
   /** Tables allowed for realtime (default: all configured tables) */
   allowedTables?: string[];
   
+  /** Presence TTL in ms (default: 60000 = 60s) */
+  presenceTtl?: number;
+  
+  /** Ephemeral data TTL in ms (default: 60000 = 60s) */
+  ephemeralTtl?: number;
 }
 
 export type RealtimeServerConfigResolved = Required<RealtimeServerConfig>;
@@ -107,4 +117,64 @@ export interface RealtimeEventEmitter {
   on<T = any>(event: string, handler: RealtimeEventHandler<T>): () => void;
   off(event: string, handler: RealtimeEventHandler): void;
   emit<T = any>(event: string, data: T): void;
+}
+
+// Presence and Ephemeral Data Types
+
+export interface PresenceState<T = any> {
+  userId: string;
+  clientId: string;
+  user?: {
+    id: string;
+    name?: string;
+    avatar?: string;
+    [key: string]: any;
+  };
+  status: 'online' | 'idle' | 'away';
+  cursor?: CursorPosition;
+  selection?: Selection;
+  editing?: EditingState;
+  custom?: T;
+  lastUpdated: number;
+}
+
+export interface CursorPosition {
+  x: number;
+  y: number;
+  relativeX?: number; // Relative to container
+  relativeY?: number;
+}
+
+export interface Selection {
+  start: number;
+  end: number;
+  text?: string;
+}
+
+export interface EditingState {
+  resourceId: string; // Document/field ID
+  resourceType?: string; // 'document', 'field', etc.
+  startedAt: number;
+}
+
+export interface PresenceEvent<T = any> {
+  type: 'join' | 'update' | 'leave' | 'sync';
+  channel: string;
+  presence: PresenceState<T> | PresenceState<T>[]; // Array for 'sync', single for others
+  timestamp: number;
+}
+
+export interface EphemeralMessage<T = any> {
+  channel: string;
+  event: string;
+  data: T;
+  userId: string;
+  clientId: string;
+  timestamp: number;
+}
+
+export interface ClientMessage<T = any> {
+  type: 'presence' | 'ephemeral';
+  channel: string;
+  data: T;
 }
