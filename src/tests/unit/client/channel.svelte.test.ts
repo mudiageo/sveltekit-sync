@@ -111,6 +111,7 @@ describe('SyncChannel', () => {
       
       await channel.subscribe();
       
+      expect(realtimeClient.joinChannel).toHaveBeenCalledWith('test-channel');
       expect(channel.isSubscribed()).toBe(true);
       expect(realtimeClient.sentMessages).toContainEqual({
         type: 'channel:join',
@@ -124,6 +125,7 @@ describe('SyncChannel', () => {
       await channel.subscribe();
       await channel.unsubscribe();
       
+      expect(realtimeClient.leaveChannel).toHaveBeenCalledWith('test-channel');
       expect(channel.isSubscribed()).toBe(false);
       expect(realtimeClient.sentMessages).toContainEqual({
         type: 'channel:leave',
@@ -138,6 +140,7 @@ describe('SyncChannel', () => {
       await channel.subscribe();
       await channel.subscribe(); // Should warn
       
+      expect(mockClient.joinChannel).toHaveBeenCalledTimes(1);
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();
     });
@@ -156,6 +159,19 @@ describe('SyncChannel', () => {
       await channel.unsubscribe();
       
       expect(presenceDestroySpy).toHaveBeenCalled();
+    });
+
+    it('should not unsubscribe if not subscribed', async () => {
+      const channel = new SyncChannel(
+        realtimeClient,
+        'test-channel',
+        testUser,
+        { presence: true }
+      );
+
+      await channel.unsubscribe();
+
+      expect(realtimeClient.leaveChannel).not.toHaveBeenCalled();
     });
   });
 

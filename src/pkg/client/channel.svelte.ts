@@ -69,6 +69,18 @@ export class SyncChannel {
     });
   }
 
+  /**
+   * Subscribe to the channel
+   */
+  async subscribe(): Promise<void> {
+    if (this.subscribed) {
+      return;
+    }
+
+    await this.realtimeClient.joinChannel(this.name);
+    this.subscribed = true;
+  }
+
   async unsubscribe(): Promise<void> {
     if (!this.subscribed) {
       return;
