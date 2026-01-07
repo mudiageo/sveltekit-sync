@@ -60,7 +60,7 @@
     await todosStore.create({
       text: newTodoText,
       completed: false,
-      createdAt: Date.now()
+      createdAt: new Date()
     });
     
     newTodoText = '';
