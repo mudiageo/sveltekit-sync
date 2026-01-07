@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EphemeralStore } from '../../../pkg/realtime/ephemeral-store';
+import { EphemeralStore } from '../../../pkg/realtime/ephemeral-store.js';
 
 describe('EphemeralStore', () => {
   let store: EphemeralStore<any>;

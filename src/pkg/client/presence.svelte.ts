@@ -48,10 +48,10 @@ export class PresenceStore<T = any> {
     this.channel = channel;
     this.options = {
       user: options.user,
-      initialState: options.initialState,
+      initialState: options.initialState as T | undefined,
       idleTimeout: options.idleTimeout ?? 300000, // 5 minutes
       heartbeatInterval: options.heartbeatInterval ?? 30000, // 30 seconds
-    };
+    } as Required<PresenceStoreOptions<T>>;
     
     // Initialize local state
     this.myState = {

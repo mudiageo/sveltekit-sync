@@ -56,6 +56,7 @@ export class RealtimeServer extends EventEmitter {
   private resolveConfig(config: RealtimeServerConfig): RealtimeServerConfigResolved {
     return {
       enabled: config.enabled ?? true,
+      path: config.path ?? '/api/sync/realtime',
       heartbeatInterval: config.heartbeatInterval ?? 30000,
       connectionTimeout: config.connectionTimeout ?? 0,
       maxConnectionsPerUser: config.maxConnectionsPerUser ?? 5,
