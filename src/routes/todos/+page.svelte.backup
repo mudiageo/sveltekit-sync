@@ -1,56 +1,25 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { todosStore, syncEngine } from '$lib/db';
-  import { browser } from '$app/environment';
+  import { todosStore } from '$lib/db';
 
   let newTodoText = $state('');
-  let currentUser = $state({
-    id: browser ? `user-${Math.random().toString(36).substr(2, 9)}` : 'user-temp',
-    name: `User ${Math.floor(Math.random() * 100)}`,
-    color: `hsl(${Math.random() * 360}, 70%, 50%)`
-  });
-
-  // Create channel for todos with presence
-  let channel = $state(null as any);
-  let collaborators = $derived(channel?.presence?.others || []);
-  let onlineCount = $derived(collaborators.length + 1);
 
   // Load todos on mount
-  onMount(async () => {
+  onMount(() => {
     todosStore.load();
-
-    // Set up presence channel
-    if (browser && syncEngine.realtime) {
-      channel = syncEngine.channel('todos', {
-        presence: true,
-        broadcast: true
-      }, currentUser);
-
-      await channel.subscribe();
-      channel.track({ viewing: 'todos', status: 'active' });
-
-      // Listen for real-time events
-      channel.on('todo:completed', (data: any) => {
-        console.log('📣', `${data.user} completed a todo!`);
-      });
-    }
-
-    return () => {
-      channel?.unsubscribe();
-    };
   });
 
   // Create derived state
   const completedTodos = $derived(
-    todosStore.data.filter(todo => todo.completed === true)
+   await todosStore.query().where(todo => todo.completed === true).get()
   );
   
   const activeTodos = $derived(
-    todosStore.data.filter(todo => todo.completed === false)
+    await todosStore.query().where(todo => todo.completed === false).get()
   );
 
   const sortedTodos = $derived(
-    [...todosStore.data].sort((a, b) => b.createdAt - a.createdAt)
+    todosStore.sort((a, b) => b.createdAt - a.createdAt)
   );
 
   // CRUD operations
@@ -60,27 +29,19 @@
     await todosStore.create({
       text: newTodoText,
       completed: false,
-      createdAt: Date.now()
+      createdAt: new Date()
     });
     
     newTodoText = '';
   }
 
   async function toggleTodo(id: string) {
-    const todo = todosStore.data.find(t => t.id === id);
+    const todo = todosStore.find(t => t.id === id);
     if (!todo) return;
-    
+    console.log(activeTodos)
     await todosStore.update(id, {
       completed: !todo.completed
     });
-
-    // Broadcast event to collaborators
-    if (!todo.completed && channel) {
-      await channel.broadcast('todo:completed', {
-        user: currentUser.name,
-        todoText: todo.text
-      });
-    }
   }
 
   async function deleteTodo(id: string) {
@@ -96,40 +57,10 @@
 <div class="todos-page animate-fade-in max-w-3xl mx-auto">
   <div class="flex items-center justify-between mb-8">
     <h1 class="heading-1">Todos</h1>
-    <div class="flex items-center gap-md">
-      <!-- Realtime status indicator -->
-      {#if syncEngine.realtime}
-        <div class="realtime-status">
-          <span class="status-dot"></span>
-        </div>
-      {/if}
-
-      <!-- Collaborators -->
-      {#if onlineCount > 1}
-        <div class="collaborators">
-          <div class="avatars-group">
-            {#each collaborators.slice(0, 3) as collab (collab.user.id)}
-              <div 
-                class="avatar" 
-                style="background-color: {collab.user.color}"
-                title="{collab.user.name}"
-              >
-                {collab.user.name.charAt(0)}
-              </div>
-            {/each}
-            {#if collaborators.length > 3}
-              <div class="avatar more">+{collaborators.length - 3}</div>
-            {/if}
-          </div>
-          <span class="text-sm text-muted">{onlineCount} online</span>
-        </div>
-      {/if}
-
-      <div class="stats text-muted">
-        <span>{activeTodos.length} active</span>
-        <span class="mx-2">•</span>
-        <span>{completedTodos.length} done</span>
-      </div>
+    <div class="stats text-muted">
+      <span>{activeTodos.length} active</span>
+      <span class="mx-2">•</span>
+      <span>{completedTodos.length} done</span>
     </div>
   </div>
 
@@ -201,7 +132,6 @@
   .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
   .p-4 { padding: var(--spacing-md); }
   .text-danger { color: var(--color-danger); }
-  .text-sm { font-size: 0.875rem; }
 
   .todo-item {
     transition: all 0.2s ease;
@@ -235,62 +165,5 @@
     color: var(--color-danger);
     padding: var(--spacing-md);
     border-radius: var(--radius-md);
-  }
-
-  /* Realtime status */
-  .realtime-status {
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 50%;
-    background-color: #22c55e;
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  .status-dot {
-    width: 100%;
-    height: 100%;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-
-  /* Collaborators */
-  .collaborators {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .avatars-group {
-    display: flex;
-    align-items: center;
-    margin-left: -0.5rem;
-  }
-
-  .avatar {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: white;
-    border: 2px solid var(--color-bg);
-    margin-left: -0.5rem;
-    transition: transform 0.2s ease;
-  }
-
-  .avatar:hover {
-    transform: translateY(-2px) scale(1.1);
-    z-index: 10;
-  }
-
-  .avatar.more {
-    background-color: var(--color-bg-secondary);
-    color: var(--color-text);
   }
 </style>
