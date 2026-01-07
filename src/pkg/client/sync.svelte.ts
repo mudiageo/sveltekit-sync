@@ -3,6 +3,7 @@ import { RealtimeClient } from '../realtime/client.js'
 import { type RealtimeStatus as RTStatus } from '../realtime/types.js'
 import { QueryBuilder } from './query/builder.js'
 import { createFieldsProxy, type FieldsProxy } from './query/field-proxy.js'
+import { SyncChannel, type ChannelOptions } from './channel.svelte.js'
 
 
 // MULTI-TAB SYNC COORDINATOR
@@ -559,6 +560,17 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
   /** Force realtime reconnection */
   reconnectRealtime(): void {
     this.realtimeClient?.reconnect();
+  }
+  
+  /**
+   * Create a channel for realtime presence and custom events
+   */
+  channel(name: string, options?: ChannelOptions): SyncChannel {
+    if (!this.realtimeClient) {
+      throw new Error('Realtime client not initialized. Call init() first.');
+    }
+    
+    return new SyncChannel(this.realtimeClient, name, options);
   }
 
   destroy(): void {
