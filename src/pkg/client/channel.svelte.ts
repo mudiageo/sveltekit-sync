@@ -120,8 +120,8 @@ export class SyncChannel {
     if (!this.presence) {
       return;
     }
-    
-    this.presence.destroy();
+  
+    this.presence.setStatus('offline');
   }
   
   /**
