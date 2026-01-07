@@ -5,7 +5,13 @@ export type RealtimeEventType =
   | 'connected'       // Connection established
   | 'heartbeat'       // Keep-alive ping
   | 'error'           // Error occurred
-  | 'reconnect';      // Server requesting reconnect
+  | 'reconnect'       // Server requesting reconnect
+  | 'presence:sync'   // Full presence state for a channel
+  | 'presence:join'   // User joined channel
+  | 'presence:update' // User updated their presence
+  | 'presence:leave'  // User left channel
+  | 'ephemeral'       // Custom ephemeral data
+  | 'channel';        // Channel-specific events
 
 export interface RealtimeEvent<T = any> {
   type: RealtimeEventType;
@@ -87,6 +93,11 @@ export interface RealtimeServerConfig {
   /** Tables allowed for realtime (default: all configured tables) */
   allowedTables?: string[];
   
+  /** TTL for presence data in ms (default: 60000 = 60s) */
+  presenceTtl?: number;
+  
+  /** TTL for generic ephemeral data in ms (default: 60000 = 60s) */
+  ephemeralTtl?: number;
 }
 
 export type RealtimeServerConfigResolved = Required<RealtimeServerConfig>;
@@ -107,4 +118,47 @@ export interface RealtimeEventEmitter {
   on<T = any>(event: string, handler: RealtimeEventHandler<T>): () => void;
   off(event: string, handler: RealtimeEventHandler): void;
   emit<T = any>(event: string, data: T): void;
+}
+
+// Presence-specific types
+export interface PresenceData<T = any> {
+  userId: string;
+  clientId: string;
+  channel: string;
+  state: T;
+  timestamp: number;
+}
+
+export interface PresenceJoinEvent<T = any> {
+  userId: string;
+  clientId: string;
+  channel: string;
+  state: T;
+}
+
+export interface PresenceUpdateEvent<T = any> {
+  userId: string;
+  clientId: string;
+  channel: string;
+  state: T;
+}
+
+export interface PresenceLeaveEvent {
+  userId: string;
+  clientId: string;
+  channel: string;
+}
+
+export interface PresenceSyncEvent<T = any> {
+  channel: string;
+  presence: Record<string, T>; // userId -> state
+}
+
+// Ephemeral data types
+export interface EphemeralDataEvent<T = any> {
+  channel: string;
+  event: string;
+  data: T;
+  userId: string;
+  clientId: string;
 }
