@@ -1,5 +1,15 @@
 # @sveltekit-sync/core
 
+## 0.2.0
+
+### Minor Changes
+
+- c2c972d: feat: fluent query api for collection store
+
+### Patch Changes
+
+- 390d136: fix: preserve existing properties in partial updates
+
 ## 0.1.0
 
 ### Minor Changes
