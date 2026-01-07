@@ -42,11 +42,16 @@ export interface UsePresenceReturn<T = any> {
  */
 export function usePresence<T = any>(
   channel: SyncChannel,
-  options: UsePresenceOptions<T>
+  options: UsePresenceOptions<T> & { user: NonNullable<UsePresenceOptions<T>['user']> }
 ): UsePresenceReturn<T> {
+  // Validate required user parameter
+  if (!options.user) {
+    throw new Error('usePresence: user parameter is required');
+  }
+  
   // Create the presence store
   const presenceStore = new PresenceStore<T>(channel, {
-    user: options.user!,
+    user: options.user,
     initialState: options.initialState,
     idleTimeout: options.idleTimeout,
     heartbeatInterval: options.heartbeatInterval

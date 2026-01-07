@@ -92,7 +92,7 @@ export function useCursorTracking<T = any>(
     
     isTracking = false;
     
-    if (mouseHandler && container) {
+    if (mouseHandler) {
       const target = container || document.body;
       target.removeEventListener('mousemove', mouseHandler);
       mouseHandler = null;
