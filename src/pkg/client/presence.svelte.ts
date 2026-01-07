@@ -1,4 +1,4 @@
-import type { RealtimeClient } from './realtime/client.js';
+import type { RealtimeClient } from '../realtime/client.js';
 
 // Types
 export interface User {
@@ -147,7 +147,7 @@ export class PresenceStore<T = any> {
     this.realtimeClient.send('presence:update', {
       channel: this.tableName,
       state: this.myState
-    }).catch((error) => {
+    }).catch((error: unknown) => {
       console.error('Failed to broadcast presence:', error);
     });
   }
@@ -265,7 +265,7 @@ export class PresenceStore<T = any> {
       // Use send() instead of emit() for client-to-server communication
       this.realtimeClient.send('presence:leave', {
         channel: this.tableName
-      }).catch((error) => {
+      }).catch((error: unknown) => {
         console.error('Failed to send presence:leave:', error);
       });
     }
