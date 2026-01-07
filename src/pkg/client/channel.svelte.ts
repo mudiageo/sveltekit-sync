@@ -130,6 +130,7 @@ export class SyncChannel {
   on<T>(event: string, handler: (data: T) => void): () => void {
     if (!this.options.broadcast) {
       console.warn('Broadcasting is not enabled for this channel');
+      return () => {};
     }
     
     if (!this.eventHandlers.has(event)) {
