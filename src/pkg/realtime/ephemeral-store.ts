@@ -99,6 +99,9 @@ export class EphemeralStore<T = any> {
     if (!entry) return false;
 
     this.store.delete(key);
+    if (this.onExpire) {
+      this.onExpire(entry);
+    }
     return true;
   }
 
