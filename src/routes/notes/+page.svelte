@@ -9,8 +9,9 @@
     color: `hsl(${Math.random() * 360}, 70%, 50%)`
   });
 
-  let channel = $state(null as any);
-  let collaborators = $derived(channel?.presence?.others || []);
+  // Use collection.presence() directly - main API
+  let presence = $state(null as any);
+  let collaborators = $derived(presence?.others || []);
   let editingUsers = $derived(
     collaborators.filter(c => c.custom?.editing)
   );
@@ -18,18 +19,16 @@
   onMount(async () => {
     notesStore.load();
 
+    // Initialize presence from collection store
     if (browser && syncEngine.realtime) {
-      channel = syncEngine.channel('notes', {
-        presence: true,
-        broadcast: true
-      }, currentUser);
-
-      await channel.subscribe();
-      channel.track({ viewing: 'notes' });
+      presence = notesStore.presence({
+        user: currentUser,
+        custom: { viewing: 'notes' }
+      });
     }
 
     return () => {
-      channel?.unsubscribe();
+      presence?.destroy();
     };
   });
 
@@ -45,14 +44,14 @@
     await notesStore.update(id, updates);
 
     // Update presence to show editing
-    if (channel) {
-      channel.track({ viewing: 'notes', editing: id });
+    if (presence) {
+      presence.updatePresence({ custom: { viewing: 'notes', editing: id } });
     }
   }
 
   function stopEditing() {
-    if (channel) {
-      channel.track({ viewing: 'notes', editing: null });
+    if (presence) {
+      presence.updatePresence({ custom: { viewing: 'notes', editing: null } });
     }
   }
 
@@ -120,7 +119,7 @@
         <input 
           value={note.title}
           onchange={(e) => updateNote(note.id, { title: e.currentTarget.value })}
-          onfocus={() => channel?.track({ viewing: 'notes', editing: note.id })}
+          onfocus={() => presence?.updatePresence({ custom: { viewing: 'notes', editing: note.id } })}
           onblur={stopEditing}
           class="note-title"
           placeholder="Note Title"
@@ -128,7 +127,7 @@
         <textarea
           value={note.content}
           onchange={(e) => updateNote(note.id, { content: e.currentTarget.value })}
-          onfocus={() => channel?.track({ viewing: 'notes', editing: note.id })}
+          onfocus={() => presence?.updatePresence({ custom: { viewing: 'notes', editing: note.id } })}
           onblur={stopEditing}
           class="note-content"
           placeholder="Start typing..."

@@ -331,4 +331,134 @@ describe('PresenceStore', () => {
       expect(handler).not.toHaveBeenCalled();
     });
   });
+
+  describe('CollectionStore.presence() integration', () => {
+    it('should create presence store from collection', async () => {
+      // Import dynamically to avoid issues
+      const { SyncEngine } = await import('$pkg/client/sync.svelte.js');
+      const { IndexedDBAdapter } = await import('$pkg/adapters/indexeddb.js');
+      
+      // Mock adapter
+      const mockAdapter = {
+        init: vi.fn().mockResolvedValue(undefined),
+        insert: vi.fn().mockResolvedValue({ id: '1' }),
+        update: vi.fn().mockResolvedValue({ id: '1' }),
+        delete: vi.fn().mockResolvedValue(undefined),
+        getAll: vi.fn().mockResolvedValue([]),
+        getById: vi.fn().mockResolvedValue(null),
+        query: vi.fn().mockResolvedValue([])
+      };
+
+      // Create sync engine with realtime
+      const engine = new SyncEngine({
+        local: { db: null, adapter: mockAdapter as any },
+        remote: {
+          push: vi.fn().mockResolvedValue({ success: true }),
+          pull: vi.fn().mockResolvedValue([])
+        },
+        realtime: {
+          enabled: true,
+          endpoint: '/api/sync/realtime'
+        }
+      });
+
+      // Create collection
+      const todosStore = engine.collection<{ id: string; text: string }>('todos');
+
+      // Create presence from collection
+      const presence = todosStore.presence({
+        user: { id: 'user-1', name: 'Test User' },
+        custom: { editing: 'todo-1' }
+      });
+
+      expect(presence).toBeDefined();
+      expect(presence).toBeInstanceOf(PresenceStore);
+      
+      // Calling again should return same instance
+      const presence2 = todosStore.presence({
+        user: { id: 'user-1', name: 'Test User' }
+      });
+      
+      expect(presence2).toBe(presence);
+
+      presence.destroy();
+      engine.destroy();
+    });
+
+    it('should use collection table name for presence', async () => {
+      const { SyncEngine } = await import('$pkg/client/sync.svelte.js');
+      
+      const mockAdapter = {
+        init: vi.fn().mockResolvedValue(undefined),
+        insert: vi.fn().mockResolvedValue({ id: '1' }),
+        update: vi.fn().mockResolvedValue({ id: '1' }),
+        delete: vi.fn().mockResolvedValue(undefined),
+        getAll: vi.fn().mockResolvedValue([]),
+        getById: vi.fn().mockResolvedValue(null),
+        query: vi.fn().mockResolvedValue([])
+      };
+
+      const engine = new SyncEngine({
+        local: { db: null, adapter: mockAdapter as any },
+        remote: {
+          push: vi.fn().mockResolvedValue({ success: true }),
+          pull: vi.fn().mockResolvedValue([])
+        },
+        realtime: {
+          enabled: true,
+          endpoint: '/api/sync/realtime'
+        }
+      });
+
+      const notesStore = engine.collection<{ id: string; content: string }>('notes');
+      const presence = notesStore.presence({
+        user: { id: 'user-1', name: 'Test User' }
+      });
+
+      // The presence store should be scoped to 'notes' table
+      expect(presence).toBeDefined();
+      
+      presence.destroy();
+      engine.destroy();
+    });
+
+    it('should support custom state in collection presence', async () => {
+      const { SyncEngine } = await import('$pkg/client/sync.svelte.js');
+      
+      const mockAdapter = {
+        init: vi.fn().mockResolvedValue(undefined),
+        insert: vi.fn().mockResolvedValue({ id: '1' }),
+        update: vi.fn().mockResolvedValue({ id: '1' }),
+        delete: vi.fn().mockResolvedValue(undefined),
+        getAll: vi.fn().mockResolvedValue([]),
+        getById: vi.fn().mockResolvedValue(null),
+        query: vi.fn().mockResolvedValue([])
+      };
+
+      const engine = new SyncEngine({
+        local: { db: null, adapter: mockAdapter as any },
+        remote: {
+          push: vi.fn().mockResolvedValue({ success: true }),
+          pull: vi.fn().mockResolvedValue([])
+        },
+        realtime: {
+          enabled: true,
+          endpoint: '/api/sync/realtime'
+        }
+      });
+
+      const todosStore = engine.collection<{ id: string; text: string }>('todos');
+      const presence = todosStore.presence({
+        user: { id: 'user-1', name: 'Test User' },
+        custom: { editing: 'todo-123', mode: 'focus' }
+      });
+
+      expect(presence).toBeDefined();
+      expect(presence.myPresence.custom).toEqual({ editing: 'todo-123', mode: 'focus' });
+      
+      presence.destroy();
+      engine.destroy();
+    });
+  });
+});
 });

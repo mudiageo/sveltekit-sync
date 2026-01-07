@@ -55,14 +55,11 @@ export const { sync, GET, POST, handle } = createServerSync({
 });
 ```
 
-### 2. API Route
+### 2. API Route Setup
 
-```typescript
-// src/routes/api/sync/realtime/+server.ts
-export { GET, POST } from '$lib/server/sync';
-```
+You have **two options** for setting up the realtime endpoints:
 
-### 3. Hooks (optional but recommended)
+#### Option A: Using the `handle` hook (Recommended)
 
 ```typescript
 // src/hooks.server.ts
@@ -71,7 +68,20 @@ import { handle as syncHandle } from '$lib/server/sync';
 export const handle = syncHandle;
 ```
 
-### 4. Client Setup
+This automatically handles both GET (SSE) and POST (client messages) at the configured path. **No need to create separate API routes.**
+
+#### Option B: Using explicit API routes
+
+If you prefer explicit routes or need custom middleware:
+
+```typescript
+// src/routes/api/sync/realtime/+server.ts
+export { GET, POST } from '$lib/server/sync';
+```
+
+Choose **either** Option A (handle) **or** Option B (explicit routes), not both.
+
+### 3. Client Setup
 
 ```typescript
 // src/lib/db.ts
@@ -102,11 +112,122 @@ export const syncEngine = new SyncEngine({
     endpoint: '/api/sync/realtime'
   }
 });
+
+// Create collection stores
+export const todosStore = syncEngine.collection('todos');
+export const notesStore = syncEngine.collection('notes');
 ```
 
-## Using Channels
+## Basic Usage - Collection Presence (Primary API)
 
-Channels provide scoped communication for presence and custom events.
+The **primary and recommended** way to use presence is directly from your collection store. This automatically scopes presence to the collection's table and provides the simplest API.
+
+### Simple Example
+
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { todosStore } from '$lib/db';
+  
+  const currentUser = {
+    id: 'user123',
+    name: 'John Doe',
+    avatar: '/avatars/john.jpg'
+  };
+
+  // Create presence from collection - automatically scoped to 'todos' table
+  const presence = todosStore.presence({
+    user: currentUser,
+    custom: { viewing: 'list' }
+  });
+
+  // Access collaborators reactively
+  const others = $derived(presence.others);
+  const onlineCount = $derived(presence.onlineCount);
+
+  onMount(() => {
+    todosStore.load();
+    
+    return () => {
+      presence.destroy();
+    };
+  });
+</script>
+
+<div>
+  <h2>Online: {onlineCount}</h2>
+  {#each others as collaborator (collaborator.user.id)}
+    <div class="avatar">
+      <img src={collaborator.user.avatar} alt={collaborator.user.name} />
+      <span>{collaborator.user.name}</span>
+    </div>
+  {/each}
+</div>
+```
+
+### Tracking User Activity
+
+```svelte
+<script lang="ts">
+  import { notesStore } from '$lib/db';
+  
+  const presence = notesStore.presence({
+    user: currentUser,
+    custom: { editing: null }
+  });
+
+  function startEditing(noteId: string) {
+    presence.updatePresence({ 
+      custom: { editing: noteId } 
+    });
+  }
+
+  function stopEditing() {
+    presence.updatePresence({ 
+      custom: { editing: null } 
+    });
+  }
+
+  // See who's editing what
+  const editingUsers = $derived(
+    presence.others.filter(u => u.custom?.editing)
+  );
+</script>
+
+<div>
+  {#each notes as note}
+    {@const editor = editingUsers.find(u => u.custom.editing === note.id)}
+    
+    <div class="note">
+      {#if editor}
+        <span class="editing-badge">
+          {editor.user.name} is editing
+        </span>
+      {/if}
+      
+      <input
+        value={note.title}
+        onfocus={() => startEditing(note.id)}
+        onblur={stopEditing}
+      />
+    </div>
+  {/each}
+</div>
+```
+
+## Using Channels (Alternative API)
+
+Channels provide an alternative API when you need custom channel names (not tied to tables) or want to combine presence with custom event broadcasting in a single interface.
+
+**Use channels when:**
+- You need a custom channel name (e.g., `document:123` instead of table name)
+- You want to broadcast custom events alongside presence
+- You need fine-grained control over channel lifecycle
+
+**Use collection.presence() when:**
+- You want presence scoped to a collection/table (most common case)
+- You prefer a simpler API without explicit subscribe/unsubscribe
+- You don't need custom event broadcasting
 
 ### Basic Channel Usage
 
