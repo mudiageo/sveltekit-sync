@@ -55,9 +55,11 @@ export class SyncChannel {
     this.setupEventListeners();
   }
   
+  private unsubscribeEphemeral?: () => void;
+
   private setupEventListeners(): void {
     // Listen for ephemeral events on this channel
-    this.realtimeClient.on('ephemeral', (data: any) => {
+    this.unsubscribeEphemeral = this.realtimeClient.on('ephemeral', (data: any) => {
       if (data.channel === this.name) {
         const handlers = this.eventHandlers.get(data.event);
         if (handlers) {
@@ -66,37 +68,26 @@ export class SyncChannel {
       }
     });
   }
-  
-  /**
-   * Subscribe to the channel
-   * Must be called before receiving events
-   */
-  async subscribe(): Promise<void> {
-    if (this.subscribed) {
-      console.warn(`Channel ${this.name} is already subscribed`);
-      return;
-    }
-    
-    await this.realtimeClient.joinChannel(this.name);
-    this.subscribed = true;
-  }
-  
-  /**
-   * Unsubscribe from the channel
-   */
+
   async unsubscribe(): Promise<void> {
     if (!this.subscribed) {
       return;
     }
-    
+
     await this.realtimeClient.leaveChannel(this.name);
     this.subscribed = false;
-    
+
     // Clean up presence if enabled
     if (this.presence) {
       this.presence.destroy();
     }
-    
+
+    // Remove ephemeral listener
+    if (this.unsubscribeEphemeral) {
+      this.unsubscribeEphemeral();
+      this.unsubscribeEphemeral = undefined;
+    }
+
     // Clear event handlers
     this.eventHandlers.clear();
   }
