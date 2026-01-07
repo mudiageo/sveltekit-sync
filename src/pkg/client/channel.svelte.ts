@@ -158,7 +158,12 @@ export class SyncChannel {
       console.warn('Broadcasting is not enabled for this channel');
       return;
     }
-    
+  
+    if (!this.subscribed) {
+      console.warn(`Cannot broadcast on unsubscribed channel ${this.name}`);
+      return;
+    }
+  
     await this.realtimeClient.send('ephemeral', {
       channel: this.name,
       event,
