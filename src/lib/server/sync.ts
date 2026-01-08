@@ -49,4 +49,4 @@ export const config: SyncConfig = {
 
 const adapter = new DrizzleAdapter({ db, schema })
 
-export const { syncEngine, GET, handle } = createServerSync({ adapter, config });
+export const { syncEngine, GET, POST, handle } = createServerSync({ adapter, config });

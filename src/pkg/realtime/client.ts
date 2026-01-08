@@ -168,6 +168,48 @@ export class RealtimeClient extends EventEmitter {
   }
 
   /**
+   * Send a message to the server via POST
+   * This enables bidirectional communication (client -> server)
+   */
+  async send(type: string, data: any): Promise<void> {
+    if (!this.config.enabled) {
+      console.warn('Realtime is disabled, cannot send message');
+      return;
+    }
+
+    try {
+      const response = await fetch(this.config.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ type, data }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error sending message to server:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Join a channel to receive channel-specific events
+   */
+  async joinChannel(channel: string): Promise<void> {
+    await this.send('channel:join', { channel });
+  }
+
+  /**
+   * Leave a channel
+   */
+  async leaveChannel(channel: string): Promise<void> {
+    await this.send('channel:leave', { channel });
+  }
+
+  /**
    * Clean up resources
    */
   destroy(): void {

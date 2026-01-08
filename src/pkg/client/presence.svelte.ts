@@ -1,4 +1,4 @@
-import type { RealtimeClient } from './realtime/client.js';
+import type { RealtimeClient } from '../realtime/client.js';
 
 // Types
 export interface User {
@@ -48,6 +48,8 @@ export class PresenceStore<T = any> {
   private heartbeatInterval: number | null = null;
   private idleTimer: number | null = null;
   private eventListeners: Map<string, Set<(data: any) => void>> = new Map();
+  private cursorDebounceTimer: number | null = null;
+  private cursorDebounceMs = 50; // 50ms debounce for cursor updates
 
   constructor(
     realtimeClient: RealtimeClient | null,
@@ -141,10 +143,12 @@ export class PresenceStore<T = any> {
     if (!this.realtimeClient) return;
     
     this.myState.lastSeen = Date.now();
-    this.realtimeClient.emit('presence:update', {
-      table: this.tableName,
-      userId: this.myState.user.id,
+    // Use send() instead of emit() for client-to-server communication
+    this.realtimeClient.send('presence:update', {
+      channel: this.tableName,
       state: this.myState
+    }).catch((error: unknown) => {
+      console.error('Failed to broadcast presence:', error);
     });
   }
 
@@ -178,7 +182,14 @@ export class PresenceStore<T = any> {
 
   updateCursor(position: CursorPosition): void {
     this.myState.cursor = position;
-    this.broadcastPresence();
+    
+    // Debounce cursor updates to avoid flooding the server
+    if (this.cursorDebounceTimer) {
+      clearTimeout(this.cursorDebounceTimer);
+    }
+    this.cursorDebounceTimer = window.setTimeout(() => {
+      this.broadcastPresence();
+    }, this.cursorDebounceMs);
   }
 
   updateSelection(selection: Selection | null): void {
@@ -248,11 +259,14 @@ export class PresenceStore<T = any> {
   destroy(): void {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.cursorDebounceTimer) clearTimeout(this.cursorDebounceTimer);
     
     if (this.realtimeClient) {
-      this.realtimeClient.emit('presence:leave', {
-        table: this.tableName,
-        userId: this.myState.user.id
+      // Use send() instead of emit() for client-to-server communication
+      this.realtimeClient.send('presence:leave', {
+        channel: this.tableName
+      }).catch((error: unknown) => {
+        console.error('Failed to send presence:leave:', error);
       });
     }
     
