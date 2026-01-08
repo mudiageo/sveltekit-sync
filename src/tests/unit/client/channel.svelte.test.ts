@@ -21,6 +21,14 @@ class MockRealtimeClient extends RealtimeClient {
     this.sentMessages.push({ type, data });
   }
 
+  joinChannel() {
+    return vi.fn().mockResolvedValue(undefined);
+  }
+
+  leaveChannel() {
+    return vi.fn().mockResolvedValue(undefined);
+  }
+
   on<T>(event: string, handler: (data: T) => void): () => void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set());
@@ -140,7 +148,7 @@ describe('SyncChannel', () => {
       await channel.subscribe();
       await channel.subscribe(); // Should warn
       
-      expect(mockClient.joinChannel).toHaveBeenCalledTimes(1);
+      expect(realtimeClient.joinChannel).toHaveBeenCalledTimes(1);
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();
     });
