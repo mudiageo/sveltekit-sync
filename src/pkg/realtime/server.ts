@@ -4,9 +4,16 @@ import type {
   RealtimeServerConfig, 
   RealtimeServerConfigResolved,
   RealtimeConnection,
-  RealtimeEvent
+  RealtimeEvent,
+  PresenceData,
+  PresenceJoinEvent,
+  PresenceUpdateEvent,
+  PresenceLeaveEvent,
+  PresenceSyncEvent,
+  EphemeralDataEvent
 } from './types.js';
 import { EventEmitter } from './event-emitter.js';
+import { EphemeralStore, type EphemeralEntry } from './ephemeral-store.js';
 
 /**
  * Server-side realtime connection manager.
@@ -16,12 +23,33 @@ export class RealtimeServer extends EventEmitter {
   private config: RealtimeServerConfigResolved;
   private connections: Map<string, RealtimeConnection> = new Map();
   private userConnections: Map<string, Set<string>> = new Map();
+  private channelSubscriptions: Map<string, Set<string>> = new Map(); // channel -> connectionIds
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private encoder = new TextEncoder();
+  
+  // Ephemeral stores
+  private presenceStore: EphemeralStore<any>;
+  private ephemeralStore: EphemeralStore<any>;
 
   constructor(config: RealtimeServerConfig = {}) {
     super();
     this.config = this.resolveConfig(config);
+    
+    // Initialize ephemeral stores
+    this.presenceStore = new EphemeralStore({
+      ttl: config.presenceTtl ?? 60000,
+      onExpire: (entry) => this.handlePresenceExpire(entry)
+    });
+    
+    this.ephemeralStore = new EphemeralStore({
+      ttl: config.ephemeralTtl ?? 60000
+    });
+    
+    // Set up internal event handlers for presence
+    this.setupPresenceHandlers();
+    
+    // Set up generic ephemeral data handlers
+    this.setupEphemeralHandlers();
     
     if (this.config.enabled && this.config.heartbeatInterval > 0) {
       this.startHeartbeat();
@@ -36,6 +64,8 @@ export class RealtimeServer extends EventEmitter {
       maxConnectionsPerUser: config.maxConnectionsPerUser ?? 5,
       authenticate: config.authenticate ?? (async () => null),
       allowedTables: config.allowedTables ?? [],
+      presenceTtl: config.presenceTtl ?? 60000,
+      ephemeralTtl: config.ephemeralTtl ?? 60000,
     };
   }
 
@@ -217,12 +247,231 @@ export class RealtimeServer extends EventEmitter {
   }
   
   /**
+   * Handle incoming client message (from POST requests)
+   */
+  handleClientMessage(message: any, userId: string, clientId: string): void {
+    const { type, data } = message;
+    
+    switch (type) {
+      case 'presence:join':
+      case 'presence:update':
+        this.handlePresenceUpdate(data, userId, clientId);
+        break;
+      case 'presence:leave':
+        this.handlePresenceLeave(data, userId, clientId);
+        break;
+      case 'ephemeral':
+        this.handleEphemeralData(data, userId, clientId);
+        break;
+      case 'channel:join':
+        this.handleChannelJoin(data, userId, clientId);
+        break;
+      case 'channel:leave':
+        this.handleChannelLeave(data, userId, clientId);
+        break;
+      default:
+        console.warn(`Unknown message type: ${type}`);
+    }
+  }
+  
+  /**
    * Clean up resources
    */
   destroy(): void {
     this.stopHeartbeat();
     this.disconnectAll();
+    this.presenceStore.destroy();
+    this.ephemeralStore.destroy();
     this.removeAllListeners();
+  }
+  
+  // Presence handlers
+  private setupPresenceHandlers(): void {
+    // No-op for now, presence is handled via handleClientMessage
+  }
+  
+  private setupEphemeralHandlers(): void {
+    // No-op for now, ephemeral data is handled via handleClientMessage
+  }
+  
+  private handlePresenceUpdate(data: PresenceData, userId: string, clientId: string): void {
+    const { channel, state } = data;
+    const key = `${channel}:${userId}:${clientId}`;
+    
+    // Check if this is a new presence (join) or update
+    const existing = this.presenceStore.getEntry(key);
+    const isJoin = !existing;
+    
+    // Store/update presence
+    this.presenceStore.set(key, {
+      data: state,
+      userId,
+      clientId,
+      channel
+    });
+    
+    // Broadcast to other clients in the channel
+    const eventType = isJoin ? 'presence:join' : 'presence:update';
+    const event: PresenceJoinEvent | PresenceUpdateEvent = {
+      userId,
+      clientId,
+      channel,
+      state
+    };
+    
+    this.broadcastToChannel(channel, {
+      type: eventType,
+      data: event,
+      timestamp: Date.now()
+    }, clientId);
+  }
+  
+  private handlePresenceLeave(data: { channel: string }, userId: string, clientId: string): void {
+    const { channel } = data;
+    const key = `${channel}:${userId}:${clientId}`;
+    
+    // Remove presence
+    this.presenceStore.delete(key);
+    
+    // Broadcast leave event
+    const event: PresenceLeaveEvent = {
+      userId,
+      clientId,
+      channel
+    };
+    
+    this.broadcastToChannel(channel, {
+      type: 'presence:leave',
+      data: event,
+      timestamp: Date.now()
+    });
+  }
+  
+  private handlePresenceExpire(entry: EphemeralEntry): void {
+    // Broadcast leave event when presence expires
+    const event: PresenceLeaveEvent = {
+      userId: entry.userId,
+      clientId: entry.clientId,
+      channel: entry.channel
+    };
+    
+    this.broadcastToChannel(entry.channel, {
+      type: 'presence:leave',
+      data: event,
+      timestamp: Date.now()
+    });
+  }
+  
+  private handleEphemeralData(data: EphemeralDataEvent, userId: string, clientId: string): void {
+    const { channel, event: eventName, data: eventData } = data;
+    
+    // Store ephemeral data
+    const key = `${channel}:${eventName}:${Date.now()}:${Math.random()}`;
+    this.ephemeralStore.set(key, {
+      data: eventData,
+      userId,
+      clientId,
+      channel
+    });
+    
+    // Broadcast to channel
+    this.broadcastToChannel(channel, {
+      type: 'ephemeral',
+      data: {
+        channel,
+        event: eventName,
+        data: eventData,
+        userId,
+        clientId
+      },
+      timestamp: Date.now()
+    }, clientId);
+  }
+  
+  private handleChannelJoin(data: { channel: string }, userId: string, clientId: string): void {
+    const { channel } = data;
+    
+    // Find connection for this client
+    const connectionId = this.findConnectionId(userId, clientId);
+    if (!connectionId) return;
+    
+    // Add to channel subscriptions
+    if (!this.channelSubscriptions.has(channel)) {
+      this.channelSubscriptions.set(channel, new Set());
+    }
+    this.channelSubscriptions.get(channel)!.add(connectionId);
+    
+    // Send current presence state for this channel
+    this.sendPresenceSync(connectionId, channel);
+  }
+  
+  private handleChannelLeave(data: { channel: string }, userId: string, clientId: string): void {
+    const { channel } = data;
+    
+    // Find connection for this client
+    const connectionId = this.findConnectionId(userId, clientId);
+    if (!connectionId) return;
+    
+    // Remove from channel subscriptions
+    const subs = this.channelSubscriptions.get(channel);
+    if (subs) {
+      subs.delete(connectionId);
+      if (subs.size === 0) {
+        this.channelSubscriptions.delete(channel);
+      }
+    }
+  }
+  
+  private sendPresenceSync(connectionId: string, channel: string): void {
+    const presenceEntries = this.presenceStore.getByChannel(channel);
+    const presence: Record<string, any> = {};
+    
+    for (const entry of presenceEntries) {
+      const key = `${entry.userId}`;
+      presence[key] = entry.data;
+    }
+    
+    const event: PresenceSyncEvent = {
+      channel,
+      presence
+    };
+    
+    this.sendToConnection(connectionId, {
+      type: 'presence:sync',
+      data: event,
+      timestamp: Date.now()
+    });
+  }
+  
+  private broadcastToChannel(channel: string, event: RealtimeEvent, excludeClientId?: string): void {
+    const subs = this.channelSubscriptions.get(channel);
+    if (!subs) return;
+    
+    for (const connectionId of subs) {
+      const connection = this.connections.get(connectionId);
+      if (!connection) continue;
+      
+      // Skip the client that originated the event
+      if (excludeClientId && connection.clientId === excludeClientId) {
+        continue;
+      }
+      
+      this.sendToConnection(connectionId, event);
+    }
+  }
+  
+  private findConnectionId(userId: string, clientId: string): string | null {
+    const userConns = this.userConnections.get(userId);
+    if (!userConns) return null;
+    
+    for (const connId of userConns) {
+      const conn = this.connections.get(connId);
+      if (conn && conn.clientId === clientId) {
+        return connId;
+      }
+    }
+    
+    return null;
   }
   
   private addConnection(connection: RealtimeConnection): void {

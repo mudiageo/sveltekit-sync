@@ -1,1 +1,1 @@
-export { GET } from '$lib/server/sync'
+export { GET, POST } from '$lib/server/sync'
