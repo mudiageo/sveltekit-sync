@@ -274,6 +274,12 @@ describe('SyncChannel', () => {
       
       await channel.broadcast('custom-event', { message: 'Hello' });
       
+      expect(realtimeClient.send).toHaveBeenCalledWith('ephemeral', {
+          channel: 'test-channel',
+          'custom-event',
+          { message: 'Hello' }
+        });
+        
       expect(realtimeClient.sentMessages).toContainEqual({
         type: 'ephemeral',
         data: {
