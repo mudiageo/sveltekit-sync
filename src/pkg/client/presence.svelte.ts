@@ -217,7 +217,7 @@ export class PresenceStore<T = any> {
   }
 
   get onlineCount(): number {
-    return this.others.reduce((acc, u) => u.status === 'online' ? acc + 1 : acc, 0);
+    return this.others.reduce((acc, u) => u.status === 'online' ? acc + 1 : acc, this.myState.status === 'online' ? 1 : 0);
   }
 
   getUser(userId: string): PresenceState<T> | null {
