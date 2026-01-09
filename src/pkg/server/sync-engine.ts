@@ -257,16 +257,53 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
        
     }
     
+    async function POST(event: RequestEvent) {
+      const { request } = event;
+      
+      // Authenticate the request
+      const user = await realtimeConfig.authenticate(request);
+      if (!user) return new Response('Unauthorised', { status: 401 });
+      
+      const userId = user.userId;
+      const clientId = user.clientId;
+      
+      try {
+        // Parse the incoming message
+        const message = await request.json();
+        
+        // Handle the message
+        realtimeServer.handleClientMessage(message, userId, clientId);
+        
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('Error handling realtime POST:', error);
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    
     async function handle({ event, resolve }) {
       const path = realtimeConfig.path ?? '/api/sync/realtime';
       
-      if(event.url.pathname === path && event.request.method === 'GET') {
-        return  GET(event)
+      if(event.url.pathname === path) {
+        if (event.request.method === 'GET') {
+          return GET(event);
+        } else if (event.request.method === 'POST') {
+          return POST(event);
+        }
       }
       return resolve(event)
     }
     
-    return { GET, handle };
+    return { GET, POST, handle };
   }
 
   // REAL-TIME SUPPORT
@@ -291,12 +328,13 @@ export function createServerSync({ adapter, config }: { adapter: ServerAdapter, 
   
   const sync = new ServerSyncEngine(adapter, config);
   
-  const { GET, handle } = sync.createRealtimeHandlers();
+  const { GET, POST, handle } = sync.createRealtimeHandlers();
   
   return {
     sync,
     syncEngine: sync,
     GET,
+    POST,
     handle,
   }
 }
