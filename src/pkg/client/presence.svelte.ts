@@ -118,17 +118,17 @@ export class PresenceStore<T = any> {
   }
 
   private setupIdleDetection(): void {
-    const resetIdle = () => {
-      if (this.myState.status === 'idle') {
-        this.setActive();
-      }
-      this.resetIdleTimer();
-    };
+    window.addEventListener('mousemove', this.resetIdle);
+    window.addEventListener('keydown', this.resetIdle);
+    window.addEventListener('click', this.resetIdle);
 
-    window.addEventListener('mousemove', resetIdle);
-    window.addEventListener('keydown', resetIdle);
-    window.addEventListener('click', resetIdle);
+    this.resetIdleTimer();
+  }
 
+  private resetIdle(): void {
+    if (this.myState.status === 'idle') {
+      this.setActive();
+    }
     this.resetIdleTimer();
   }
 
@@ -268,6 +268,10 @@ export class PresenceStore<T = any> {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     if (this.idleTimer) clearTimeout(this.idleTimer);
     if (this.cursorDebounceTimer) clearTimeout(this.cursorDebounceTimer);
+
+    window.removeEventListener('mousemove', this.resetIdle);
+    window.removeEventListener('keydown', this.resetIdle);
+    window.removeEventListener('click', this.resetIdle);
     
     if (this.realtimeClient) {
       // Use send() instead of emit() for client-to-server communication
