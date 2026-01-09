@@ -74,6 +74,7 @@ export class SyncChannel {
    */
   async subscribe(): Promise<void> {
     if (this.subscribed) {
+      console.warn("Already subscribed to channel")
       return;
     }
 
