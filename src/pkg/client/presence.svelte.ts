@@ -204,6 +204,10 @@ export class PresenceStore<T = any> {
     this.broadcastPresence();
   }
 
+  get myPresence(): PresenceState<T> {
+    return this.myState;
+  }
+
   get others(): PresenceState<T>[] {
     return Array.from(this.othersState.values());
   }
