@@ -35,6 +35,9 @@ describe('useWhoIsHere', () => {
     const presence = usePresence(channel, testUser);
     const whoIsHere = useWhoIsHere(presence);
 
+    expect(presence.myPresence).toBeDefined();
+    expect(presence.others).toEqual([]);
+
     expect(whoIsHere.users).toBeDefined();
     expect(Array.isArray(whoIsHere.users)).toBe(true);
     expect(whoIsHere.users.length).toBeGreaterThan(0);
