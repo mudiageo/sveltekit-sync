@@ -52,6 +52,7 @@ describe('SyncChannel', () => {
     realtimeClient = new MockRealtimeClient();
     vi.spyOn(realtimeClient, 'joinChannel');
     vi.spyOn(realtimeClient, 'leaveChannel');
+    vi.spyOn(realtimeClient, 'send');
   
     testUser = {
       id: 'user1',
@@ -274,7 +275,7 @@ describe('SyncChannel', () => {
       
       await channel.broadcast('custom-event', { message: 'Hello' });
       
-      expect(realtimeClient.send).toHaveBeenCalledWith('ephemeral', {
+      expect(await realtimeClient.send).toHaveBeenCalledWith('ephemeral', {
           channel: 'test-channel',
           event: 'custom-event',
           data: { message: 'Hello' }
