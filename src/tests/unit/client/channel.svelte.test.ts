@@ -273,6 +273,8 @@ describe('SyncChannel', () => {
         { broadcast: true }
       );
       
+      await channel.subscribe();
+
       await channel.broadcast('custom-event', { message: 'Hello' });
       
       expect(await realtimeClient.send).toHaveBeenCalledWith('ephemeral', {
