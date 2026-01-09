@@ -73,13 +73,12 @@ describe('PresenceStore', () => {
     it('should generate a color if not provided', () => {
       const storeNoColor = new PresenceStore(mockClient as any, 'todos', { id: 'u2', name: 'No Color' });
       // Color should be assigned internally
+      expect(storeNoColor.myPresence.user.color).toBeDefined();
       storeNoColor.destroy();
     });
 
     it('should broadcast initial presence on setup', () => {
       expect(mockClient.send).toHaveBeenCalledWith('presence:update', expect.objectContaining({
-        userId: 'user-1',
-        table: 'todos',
         state: expect.objectContaining({ status: 'online' })
       }));
     });
@@ -334,7 +333,7 @@ describe('PresenceStore', () => {
       store.destroy();
       
       expect(mockClient.send).toHaveBeenLastCalledWith('presence:leave', {
-        table: 'todos',
+        channel: 'todos',
         userId: 'user-1'
       });
     });
