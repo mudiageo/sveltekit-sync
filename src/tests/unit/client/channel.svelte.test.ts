@@ -215,10 +215,10 @@ describe('SyncChannel', () => {
         { presence: true }
       );
       
-      const destroySpy = vi.spyOn(channel.presence!, 'destroy');
+      const setStatusSpy = vi.spyOn(channel.presence!, 'setStatus');
       channel.untrack();
       
-      expect(destroySpy).toHaveBeenCalled();
+      expect(setStatusSpy).toHaveBeenCalledWith('offline');
     });
   });
 
