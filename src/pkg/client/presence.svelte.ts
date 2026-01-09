@@ -272,7 +272,8 @@ export class PresenceStore<T = any> {
     if (this.realtimeClient) {
       // Use send() instead of emit() for client-to-server communication
       this.realtimeClient.send('presence:leave', {
-        channel: this.tableName
+        channel: this.tableName,
+        userId: this.myState.user.id
       }).catch((error: unknown) => {
         console.error('Failed to send presence:leave:', error);
       });
