@@ -1,5 +1,15 @@
 # @sveltekit-sync/core
 
+## 0.3.0
+
+### Minor Changes
+
+- 9ce2d11: feat: add presence/awareness system with ephemeral data store
+
+### Patch Changes
+
+- 9ce2d11: feat: add bidirectional communication to RealtimeClient
+
 ## 0.2.0
 
 ### Minor Changes
