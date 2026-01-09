@@ -276,8 +276,8 @@ describe('SyncChannel', () => {
       
       expect(realtimeClient.send).toHaveBeenCalledWith('ephemeral', {
           channel: 'test-channel',
-          'custom-event',
-          { message: 'Hello' }
+          event: 'custom-event',
+          data: { message: 'Hello' }
         });
         
       expect(realtimeClient.sentMessages).toContainEqual({
