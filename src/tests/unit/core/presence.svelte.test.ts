@@ -6,33 +6,53 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PresenceStore } from '$pkg/client/presence.svelte.js';
 import type { User, PresenceState, CursorPosition, Selection, EditingState } from '$pkg/client/presence.svelte.js';
+import { RealtimeClient } from '$pkg/realtime/client.js';
 
 // Mock RealtimeClient
-function createMockRealtimeClient() {
-  const listeners = new Map<string, Set<(data: any) => void>>();
-  
-  return {
-    on: vi.fn((event: string, handler: (data: any) => void) => {
-      if (!listeners.has(event)) listeners.set(event, new Set());
-      listeners.get(event)!.add(handler);
-      return () => listeners.get(event)?.delete(handler);
-    }),
-    emit: vi.fn(),
-    // Test helper to trigger events
-    _trigger: (event: string, data: any) => {
-      listeners.get(event)?.forEach(h => h(data));
+class MockRealtimeClient extends RealtimeClient {
+  public sentMessages: Array<{ type: string; data: any }> = [];
+  public eventHandlers: Map<string, Set<(data: any) => void>> = new Map();
+
+  constructor() {
+    super({ enabled: false }); // Don't actually connect
+  }
+
+  async send(type: string, data: any): Promise<void> {
+    this.sentMessages.push({ type, data });
+  }
+
+  on<T>(event: string, handler: (data: T) => void): () => void {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, new Set());
     }
-  };
+    this.eventHandlers.get(event)!.add(handler as any);
+
+    return () => {
+      const handlers = this.eventHandlers.get(event);
+      if (handlers) {
+        handlers.delete(handler as any);
+      }
+    };
+  }
+
+  // Simulate receiving an event from server
+  simulateEvent(event: string, data: any): void {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => handler(data));
+    }
+  }
 }
 
+
 describe('PresenceStore', () => {
-  let mockClient: ReturnType<typeof createMockRealtimeClient>;
+  let mockClient: MockRealtimeClient;
   let store: PresenceStore;
   const testUser: User = { id: 'user-1', name: 'Test User', email: 'test@example.com' };
 
   beforeEach(() => {
     vi.useFakeTimers();
-    mockClient = createMockRealtimeClient();
+    mockClient = new MockRealtimeClient();
     store = new PresenceStore(mockClient as any, 'todos', testUser);
   });
 
@@ -174,7 +194,7 @@ describe('PresenceStore', () => {
         lastSeen: Date.now()
       };
       
-      mockClient._trigger('presence:join', { userId: 'user-2', state: otherUser });
+      mockClient.simulateEvent('presence:join', { userId: 'user-2', state: otherUser });
       
       expect(store.othersCount).toBe(1);
       expect(store.others[0].user.name).toBe('Other User');
@@ -187,8 +207,8 @@ describe('PresenceStore', () => {
         lastSeen: Date.now()
       };
       
-      mockClient._trigger('presence:join', { userId: 'user-2', state: otherUser });
-      mockClient._trigger('presence:update', { 
+      mockClient.simulateEvent('presence:join', { userId: 'user-2', state: otherUser });
+      mockClient.simulateEvent('presence:update', { 
         userId: 'user-2', 
         state: { ...otherUser, status: 'idle' } 
       });
@@ -197,17 +217,17 @@ describe('PresenceStore', () => {
     });
 
     it('should remove users on leave', () => {
-      mockClient._trigger('presence:join', { 
+      mockClient.simulateEvent('presence:join', { 
         userId: 'user-2', 
         state: { user: { id: 'user-2', name: 'Other' }, status: 'online', lastSeen: Date.now() } 
       });
-      mockClient._trigger('presence:leave', { userId: 'user-2' });
+      mockClient.simulateEvent('presence:leave', { userId: 'user-2' });
       
       expect(store.othersCount).toBe(0);
     });
 
     it('should ignore own presence updates', () => {
-      mockClient._trigger('presence:update', { 
+      mockClient.simulateEvent('presence:update', { 
         userId: 'user-1', 
         state: { user: testUser, status: 'online', lastSeen: Date.now() } 
       });
@@ -219,15 +239,15 @@ describe('PresenceStore', () => {
   describe('queries', () => {
     beforeEach(() => {
       // Add some other users
-      mockClient._trigger('presence:join', {
+      mockClient.simulateEvent('presence:join', {
         userId: 'user-2',
         state: { user: { id: 'user-2', name: 'User 2' }, status: 'online', lastSeen: Date.now() }
       });
-      mockClient._trigger('presence:join', {
+      mockClient.simulateEvent('presence:join', {
         userId: 'user-3',
         state: { user: { id: 'user-3', name: 'User 3' }, status: 'idle', lastSeen: Date.now() }
       });
-      mockClient._trigger('presence:join', {
+      mockClient.simulateEvent('presence:join', {
         userId: 'user-4',
         state: { 
           user: { id: 'user-4', name: 'User 4' }, 
@@ -273,14 +293,14 @@ describe('PresenceStore', () => {
       const handler = vi.fn();
       store.on('following:update', handler);
       
-      mockClient._trigger('presence:join', {
+      mockClient.simulateEvent('presence:join', {
         userId: 'user-2',
         state: { user: { id: 'user-2', name: 'User 2' }, status: 'online', lastSeen: Date.now() }
       });
       
       store.follow('user-2');
       
-      mockClient._trigger('presence:update', {
+      mockClient.simulateEvent('presence:update', {
         userId: 'user-2',
         state: { user: { id: 'user-2', name: 'User 2' }, status: 'idle', lastSeen: Date.now() }
       });
@@ -323,7 +343,7 @@ describe('PresenceStore', () => {
       store.destroy();
       
       // Should not receive events after destroy
-      mockClient._trigger('presence:update', {
+      mockClient.simulateEvent('presence:update', {
         userId: 'user-2',
         state: { user: { id: 'user-2', name: 'Other' }, status: 'online', lastSeen: Date.now() }
       });
