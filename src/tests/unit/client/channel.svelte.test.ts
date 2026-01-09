@@ -21,14 +21,6 @@ class MockRealtimeClient extends RealtimeClient {
     this.sentMessages.push({ type, data });
   }
 
-  joinChannel() {
-    return vi.fn().mockResolvedValue(undefined);
-  }
-
-  leaveChannel() {
-    return vi.fn().mockResolvedValue(undefined);
-  }
-
   on<T>(event: string, handler: (data: T) => void): () => void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set());
@@ -58,6 +50,9 @@ describe('SyncChannel', () => {
 
   beforeEach(() => {
     realtimeClient = new MockRealtimeClient();
+    vi.spyOn(realtimeClient, 'joinChannel');
+    vi.spyOn(realtimeClient, 'leaveChannel');
+  
     testUser = {
       id: 'user1',
       name: 'Test User',
@@ -162,8 +157,10 @@ describe('SyncChannel', () => {
       );
       
       await channel.subscribe();
+
+      expect(channel.presence).toBeTruthy();
       const presenceDestroySpy = vi.spyOn(channel.presence!, 'destroy');
-      
+
       await channel.unsubscribe();
       
       expect(presenceDestroySpy).toHaveBeenCalled();
