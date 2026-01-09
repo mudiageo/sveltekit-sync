@@ -54,7 +54,7 @@ describe('PresenceStore', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockClient = new MockRealtimeClient();
-    vi.spyOn(mockClient, 'emit');
+    vi.spyOn(mockClient, 'send');
     store = new PresenceStore(mockClient as any, 'todos', testUser);
   });
 
@@ -77,7 +77,7 @@ describe('PresenceStore', () => {
     });
 
     it('should broadcast initial presence on setup', () => {
-      expect(mockClient.emit).toHaveBeenCalledWith('presence:update', expect.objectContaining({
+      expect(mockClient.send).toHaveBeenCalledWith('presence:update', expect.objectContaining({
         userId: 'user-1',
         table: 'todos',
         state: expect.objectContaining({ status: 'online' })
@@ -96,7 +96,7 @@ describe('PresenceStore', () => {
       const cursor: CursorPosition = { x: 100, y: 200 };
       store.updateCursor(cursor);
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:update', 
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:update', 
         expect.objectContaining({
           state: expect.objectContaining({ cursor })
         })
@@ -111,7 +111,7 @@ describe('PresenceStore', () => {
       };
       store.updateSelection(selection);
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:update',
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:update',
         expect.objectContaining({
           state: expect.objectContaining({ selection })
         })
@@ -121,7 +121,7 @@ describe('PresenceStore', () => {
     it('should clear selection when null is passed', () => {
       store.updateSelection(null);
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:update',
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:update',
         expect.objectContaining({
           state: expect.objectContaining({ selection: undefined })
         })
@@ -137,7 +137,7 @@ describe('PresenceStore', () => {
       };
       store.updateEditing(editing);
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:update',
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:update',
         expect.objectContaining({
           state: expect.objectContaining({ editing })
         })
@@ -147,7 +147,7 @@ describe('PresenceStore', () => {
     it('should update custom presence state', () => {
       store.updatePresence({ custom: { customField: 'value' } });
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:update',
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:update',
         expect.objectContaining({
           state: expect.objectContaining({ custom: { customField: 'value' } })
         })
@@ -159,7 +159,7 @@ describe('PresenceStore', () => {
     it('should set idle status after inactivity', () => {
       vi.advanceTimersByTime(5 * 60 * 1000 + 100); // 5 min + buffer
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:update',
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:update',
         expect.objectContaining({
           state: expect.objectContaining({ status: 'idle' })
         })
@@ -170,7 +170,7 @@ describe('PresenceStore', () => {
       store.setIdle();
       store.setActive();
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:update',
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:update',
         expect.objectContaining({
           state: expect.objectContaining({ status: 'online' })
         })
@@ -180,7 +180,7 @@ describe('PresenceStore', () => {
     it('should set custom status', () => {
       store.setStatus('away');
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:update',
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:update',
         expect.objectContaining({
           state: expect.objectContaining({ status: 'away' })
         })
@@ -291,7 +291,7 @@ describe('PresenceStore', () => {
       unfollow();
     });
 
-    it('should emit following:update events', () => {
+    it('should send following:update events', () => {
       const handler = vi.fn();
       store.on('following:update', handler);
       
@@ -321,11 +321,11 @@ describe('PresenceStore', () => {
 
   describe('heartbeat', () => {
     it('should broadcast presence periodically', () => {
-      const initialCallCount = mockClient.emit.mock.calls.length;
+      const initialCallCount = mockClient.send.mock.calls.length;
       
       vi.advanceTimersByTime(30000); // Heartbeat interval
       
-      expect(mockClient.emit.mock.calls.length).toBeGreaterThan(initialCallCount);
+      expect(mockClient.send.mock.calls.length).toBeGreaterThan(initialCallCount);
     });
   });
 
@@ -333,7 +333,7 @@ describe('PresenceStore', () => {
     it('should broadcast leave on destroy', () => {
       store.destroy();
       
-      expect(mockClient.emit).toHaveBeenLastCalledWith('presence:leave', {
+      expect(mockClient.send).toHaveBeenLastCalledWith('presence:leave', {
         table: 'todos',
         userId: 'user-1'
       });
