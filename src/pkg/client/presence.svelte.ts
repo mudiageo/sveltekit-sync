@@ -83,7 +83,7 @@ export class PresenceStore<T = any> {
   private setupPresenceSync(): void {
     if (!this.realtimeClient) return;
 
-    this.realtimeClient.on('presence:update', (data: any) => {
+    this.realtimeClient.on('presence:update', (data: { userId: string; state: PresenceState<T> }) => {
       const { userId, state } = data;
       if (userId !== this.myState.user.id) {
         this.othersState.set(userId, state);
