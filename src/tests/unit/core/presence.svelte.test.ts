@@ -19,7 +19,8 @@ class MockRealtimeClient extends RealtimeClient {
 
   async send(type: string, data: any): Promise<void> {
     this.sentMessages.push({ type, data });
-  }
+    return Promise. resolve(); // Explicitly return a resolved Promise
+    }
 
   on<T>(event: string, handler: (data: T) => void): () => void {
     if (!this.eventHandlers.has(event)) {
