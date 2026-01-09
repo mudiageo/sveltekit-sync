@@ -54,7 +54,7 @@ describe('PresenceStore', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockClient = new MockRealtimeClient();
-    vi.spyOn(realtimeClient, 'emit');
+    vi.spyOn(mockClient, 'emit');
     store = new PresenceStore(mockClient as any, 'todos', testUser);
   });
 
