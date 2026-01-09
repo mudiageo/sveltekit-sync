@@ -144,10 +144,12 @@ export class PresenceStore<T = any> {
     
     this.myState.lastSeen = Date.now();
     // Use send() instead of emit() for client-to-server communication
-    this.realtimeClient.send('presence:update', {
+    const result = this.realtimeClient.send('presence:update', {
       channel: this.tableName,
       state: this.myState
-    }).catch((error: unknown) => {
+    })
+    console.log("result", result)
+    result?.catch((error: unknown) => {
       console.error('Failed to broadcast presence:', error);
     });
   }
