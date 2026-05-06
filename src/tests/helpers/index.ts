@@ -165,6 +165,25 @@ export function createMockRemote(
 }
 
 /**
+ * Creates a mock `remote.live.syncStream` function for testing
+ * the query.live integration path.
+ */
+export function createMockLiveRemote(serverData: SyncOperation[] = []) {
+	const syncStream = vi.fn().mockImplementation(
+		async (_input: { clientId: string; lastSync: number; tables?: string[] }) => {
+			return serverData;
+		}
+	);
+
+	return {
+		live: { syncStream },
+		_serverData: serverData,
+		_addServerData: (op: SyncOperation) => serverData.push(op),
+		_reset: () => { serverData.length = 0; }
+	};
+}
+
+/**
  * Creates a test sync config with sensible defaults
  */
 export function createTestSyncConfig<TLocalDB = unknown, TRemoteDB = unknown>(

@@ -1,18 +1,23 @@
 import { SyncEngine } from '$pkg/client/sync.svelte';
 import { IndexedDBAdapter } from '$pkg/adapters/indexeddb';
-import { pushChanges, pullChanges } from '$lib/sync.remote';
+import { pushChanges, syncStream } from '$lib/sync.remote';
 import { browser } from '$app/environment';
 
 const adapter = new IndexedDBAdapter('myapp-db', 1);
 
+// ─── Simplified mode ─────────────────────────────────────────────────────────
+// Two remote functions: one command for push, one query.live for pull+realtime.
+// `syncStream` replaces the old `pullChanges` + `subscribeToSync` pair.
 export const syncEngine = new SyncEngine({
   local: {
     db: null,
     adapter
   },
   remote: {
-    push: data => pushChanges(data),
-    pull: (lastSync: number, clientId: string) => pullChanges({ lastSync, clientId })
+    push: (data) => pushChanges(data),
+    live: {
+      syncStream: ({ clientId, lastSync }) => syncStream({ clientId, lastSync })
+    }
   },
   syncInterval: 30000,
   conflictResolution: 'last-write-wins',
@@ -20,6 +25,16 @@ export const syncEngine = new SyncEngine({
     console.log('Sync status:', status);
   }
 });
+
+// ─── Zero-config mode (alternative) ──────────────────────────────────────────
+// No remote functions needed at all. The server's `handle` hook (exported from
+// `createServerSync`) automatically serves POST /api/sync/push and
+// GET /api/sync/pull. Un-comment the block below to try zero-config:
+//
+// export const syncEngine = new SyncEngine({
+//   local: { db: null, adapter },
+//   syncInterval: 30000,
+// });
 
 // Initialize with optimized first load
 export async function initDB() {

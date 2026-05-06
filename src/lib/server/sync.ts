@@ -4,7 +4,7 @@ import { createServerSync } from '$pkg/server/sync-engine';
 import { DrizzleAdapter } from '$pkg/adapters/drizzle';
 import type { SQL } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
-import type { SyncConfig } from '$pjg/types'
+import type { SyncConfig } from '$pkg/server/types'
 
 // Define your sync schema - what gets synced and who can access it
 export const config: SyncConfig = {
@@ -39,10 +39,17 @@ export const config: SyncConfig = {
     }
   },
   batchSize: 100,
-  enableRealtime: true,
+
+  // Top-level authenticate is used for all sync endpoints (push, pull, realtime).
+  // Returning null rejects the request with HTTP 401.
+  authenticate: async (request) => {
+    // Replace with your real auth: e.g. const user = await getUser(request);
+    return { userId: 'user1' };
+  },
+
   realtime: {
     authenticate: (request) => {
-      return { userId: 'uswr1'};
+      return Promise.resolve({ userId: 'user1', clientId: '' });
     }
   }
 };

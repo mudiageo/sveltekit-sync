@@ -48,7 +48,10 @@ class MultiTabCoordinator {
 
 // SYNC ENGINE CORE
 export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
-  private config: Required<SyncConfig<TLocalDB, TRemoteDB>>;
+  private config: Required<Omit<SyncConfig<TLocalDB, TRemoteDB>, 'remote' | 'endpoint'>> & {
+    remote: NonNullable<SyncConfig<TLocalDB, TRemoteDB>['remote']>;
+    endpoint: string;
+  };
   private syncTimer: number | null = null;
   private isSyncing = $state(false);
   private syncStatus = $state<SyncStatus>('idle');
@@ -63,6 +66,37 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
   private realtimeStatus: RTStatus = $state('disconnected');
   
   constructor(config: SyncConfig<TLocalDB, TRemoteDB>) {
+    const endpoint = config.endpoint ?? '/api/sync';
+
+    // Build a default fetch-based remote for zero-config mode.
+    // When the user does not provide `remote`, operations are sent to
+    // POST {endpoint}/push and GET {endpoint}/pull, which are served
+    // automatically by the server's `handle` hook from `createServerSync`.
+    const defaultRemote: NonNullable<SyncConfig['remote']> = {
+      push: async (ops: SyncOperation[]) => {
+        const res = await fetch(`${endpoint}/push`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ops)
+        });
+        if (!res.ok) throw new Error(`Sync push failed: ${res.statusText}`);
+        return res.json();
+      },
+      pull: async (lastSync: number, clientId: string) => {
+        const url = new URL(
+          `${endpoint}/pull`,
+          typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+        );
+        url.searchParams.set('lastSync', String(lastSync));
+        url.searchParams.set('clientId', clientId);
+        const res = await fetch(url.toString());
+        if (!res.ok) throw new Error(`Sync pull failed: ${res.statusText}`);
+        return res.json();
+      }
+    };
+
+    const remote = config.remote ?? defaultRemote;
+
     this.config = {
       syncInterval: 30000,
       batchSize: 50,
@@ -72,14 +106,20 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
       onSync: () => { },
       onConflict: () => { },
       onError: () => { },
-      ...config
+      ...config,
+      remote,
+      endpoint,
     };
 
     this.multiTab = new MultiTabCoordinator('sveltekit-sync');
     this.setupMultiTabSync();
     
-    // Initialise realtime
-    if (typeof window !== 'undefined'){
+    // When `remote.live.syncStream` is provided, SvelteKit's `query.live`
+    // handles the realtime connection internally — skip the SSE RealtimeClient
+    // to avoid a duplicate connection.
+    const usesLiveStream = !!remote.live?.syncStream;
+
+    if (!usesLiveStream && typeof window !== 'undefined'){
       const realtimeConfig = {
         enabled: true,
         endpoint: '/api/sync/realtime',
@@ -217,8 +257,9 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
 
   private async pullInitialData(): Promise<void> {
     try {
-      // Pull all data from server (lastSync = 0 means "get everything")
-      const operations = await this.config.remote.pull(0, this.clientId);
+      // Pull all data from server (lastSync = 0 means "get everything").
+      // Prefer `live.syncStream` (query.live integration) then fall back to `pull`.
+      const operations = await this.fetchFromRemote(0);
 
       // Apply operations to local DB
       for (const op of operations) {
@@ -250,6 +291,25 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
       console.error('Failed to pull initial data:', error);
       throw error;
     }
+  }
+
+  /**
+   * Fetch remote operations since `lastSync`.
+   * Uses `remote.live.syncStream` when configured, otherwise falls back to
+   * `remote.pull` (including the default fetch-based pull in zero-config mode).
+   */
+  private async fetchFromRemote(lastSync: number): Promise<SyncOperation[]> {
+    const { remote } = this.config;
+
+    if (remote.live?.syncStream) {
+      return remote.live.syncStream({ clientId: this.clientId, lastSync });
+    }
+
+    if (remote.pull) {
+      return remote.pull(lastSync, this.clientId);
+    }
+
+    return [];
   }
 
   private ensureInitialized(): void {
@@ -398,11 +458,14 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
 
     if (pending.length === 0) return;
 
+    const pushFn = this.config.remote.push;
+    if (!pushFn) return;
+
     for (let i = 0; i < pending.length; i += this.config.batchSize) {
       const batch = pending.slice(i, i + this.config.batchSize);
 
       try {
-        const result = await this.config.remote.push(batch);
+        const result = await pushFn(batch);
 
         if (result.synced.length > 0) {
           await this.config.local.adapter.removeFromQueue(result.synced);
@@ -428,7 +491,7 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
 
   private async pull(): Promise<void> {
     const lastSync = await this.config.local.adapter.getLastSync();
-    const operations = await this.config.remote.pull(lastSync, this.clientId);
+    const operations = await this.fetchFromRemote(lastSync);
 
     for (const op of operations) {
       if (op.clientId === this.clientId) continue;
@@ -504,7 +567,7 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
 
   private startAutoSync(): void {
     this.stopAutoSync();
-    this.syncTimer = window.setInterval(() => {
+    this.syncTimer = setInterval(() => {
       this.sync();
     }, this.config.syncInterval);
   }
@@ -543,6 +606,28 @@ export class SyncEngine<TLocalDB = any, TRemoteDB = any> {
 
   async forcePull(): Promise<void> {
     await this.pull();
+  }
+
+  /**
+   * Apply an array of server operations to the local database and reload
+   * affected collections.
+   *
+   * Use this when wiring up SvelteKit's `query.live` reactivity manually:
+   * ```svelte
+   * <script>
+   *   import { syncStream } from '$lib/sync.remote';
+   *   import { engine } from '$lib/db';
+   *
+   *   // `$derived` re-runs whenever query.live pushes a refresh
+   *   const ops = $derived(syncStream({ clientId: engine.state.clientId, lastSync: 0 }));
+   *
+   *   $effect(() => { engine.applyServerOps(ops); });
+   * </script>
+   * ```
+   */
+  async applyServerOps(ops: SyncOperation[]): Promise<void> {
+    if (!ops || ops.length === 0) return;
+    await this.handleRealtimeOperations(ops);
   }
   
   get realtime(): RealtimeClient | null {

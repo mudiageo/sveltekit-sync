@@ -233,14 +233,31 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
   }
   
   createRealtimeHandlers() {
+    const config = this.config;
     const realtimeConfig = this.config.realtime;
     const realtimeServer = this.realtimeServer;
+    const syncEngine = this;
+
+    const baseEndpoint = config.endpoint ?? '/api/sync';
+    const realtimePath = realtimeConfig?.path ?? `${baseEndpoint}/realtime`;
+    const pushPath = `${baseEndpoint}/push`;
+    const pullPath = `${baseEndpoint}/pull`;
+
+    // Unified auth: config.authenticate → realtime.authenticate → anonymous
+    const authenticate = async (request: Request) => {
+      if (config.authenticate) return config.authenticate(request);
+      if (realtimeConfig?.authenticate) return realtimeConfig.authenticate(request);
+      return { userId: '' };
+    };
+
+    const hasAuth = !!(config.authenticate || realtimeConfig?.authenticate);
     
     async function GET(event: RequestEvent) {
+      if (!realtimeServer) return new Response('Realtime not configured', { status: 503 });
       const { request, url } = event;
       
       // Authenticate the request
-      const user = await realtimeConfig.authenticate(request);
+      const user = await realtimeConfig!.authenticate!(request);
       if (!user) return new Response('Unauthorised', { status: 401 });
       
       const userId = user?.userId;
@@ -258,10 +275,11 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
     }
     
     async function POST(event: RequestEvent) {
+      if (!realtimeServer) return new Response('Realtime not configured', { status: 503 });
       const { request } = event;
       
       // Authenticate the request
-      const user = await realtimeConfig.authenticate(request);
+      const user = await realtimeConfig!.authenticate!(request);
       if (!user) return new Response('Unauthorised', { status: 401 });
       
       const userId = user.userId;
@@ -289,18 +307,71 @@ export class ServerSyncEngine<TAdapter extends ServerAdapter = ServerAdapter> {
         });
       }
     }
+
+    async function handlePush(event: RequestEvent) {
+      const user = await authenticate(event.request);
+      if (hasAuth && !user) return new Response('Unauthorised', { status: 401 });
+
+      try {
+        const ops = await event.request.json();
+        const result = await syncEngine.push(ops, user?.userId ?? '');
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('Error handling push:', error);
+        return new Response(JSON.stringify({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    async function handlePull(event: RequestEvent) {
+      const user = await authenticate(event.request);
+      if (hasAuth && !user) return new Response('Unauthorised', { status: 401 });
+
+      const lastSync = Number(event.url.searchParams.get('lastSync') ?? '0');
+      const clientId = event.url.searchParams.get('clientId') ?? '';
+
+      try {
+        const ops = await syncEngine.pull(lastSync, clientId, user?.userId ?? '');
+        return new Response(JSON.stringify(ops), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('Error handling pull:', error);
+        return new Response(JSON.stringify({
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
     
     async function handle({ event, resolve }) {
-      const path = realtimeConfig.path ?? '/api/sync/realtime';
-      
-      if(event.url.pathname === path) {
-        if (event.request.method === 'GET') {
-          return GET(event);
-        } else if (event.request.method === 'POST') {
-          return POST(event);
-        }
+      const { pathname } = event.url;
+
+      if (pathname === realtimePath) {
+        if (event.request.method === 'GET') return GET(event);
+        if (event.request.method === 'POST') return POST(event);
       }
-      return resolve(event)
+
+      if (pathname === pushPath && event.request.method === 'POST') {
+        return handlePush(event);
+      }
+
+      if (pathname === pullPath && event.request.method === 'GET') {
+        return handlePull(event);
+      }
+
+      return resolve(event);
     }
     
     return { GET, POST, handle };

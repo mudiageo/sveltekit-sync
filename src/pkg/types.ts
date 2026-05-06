@@ -34,12 +34,86 @@ export interface SyncConfig<TLocalDB = any, TRemoteDB = any> {
     adapter: LocalAdapter<TLocalDB>;
   };
 
-  // Remote sync functions
-  remote: {
-    push: (ops: SyncOperation[]) => Promise<SyncResult>;
-    pull: (lastSync: number, clientId: string) => Promise<SyncOperation[]>;
+  /**
+   * Remote sync functions.
+   *
+   * **Zero-config mode**: omit this entirely. The engine will automatically
+   * send requests to `POST {endpoint}/push` and `GET {endpoint}/pull`, which
+   * are served by the server's `handle` hook from `createServerSync`.
+   *
+   * **Simplified mode**: provide only `push` + `live.syncStream`.
+   * `live.syncStream` replaces both `pull` and a realtime subscription —
+   * use a single `query.live` function on the server and call its `.refresh()`
+   * after each successful push to notify all connected clients.
+   *
+   * **Full control**: provide `push`, `pull`, and optionally `resolve`.
+   */
+  remote?: {
+    /** Push client operations to the server. */
+    push?: (ops: SyncOperation[]) => Promise<SyncResult>;
+
+    /**
+     * Pull server changes since a given timestamp.
+     * Not needed when `live.syncStream` is provided.
+     */
+    pull?: (lastSync: number, clientId: string) => Promise<SyncOperation[]>;
+
+    /** Custom conflict resolver for `conflictResolution: 'manual'`. */
     resolve?: (conflict: Conflict) => Promise<SyncOperation>;
+
+    /**
+     * `query.live` integration — replaces both `pull` and a realtime subscription.
+     *
+     * Provide a single server function (ideally a `query.live`) that returns
+     * operations since `lastSync`. When the server calls `syncStream.refresh()`
+     * (e.g. inside a push command), all subscribed clients are notified and
+     * the engine re-fetches without a separate SSE/realtime connection.
+     *
+     * Example server (`sync.remote.ts`):
+     * ```ts
+     * export const syncStream = query.live(
+     *   v.object({ clientId: v.string(), lastSync: v.number() }),
+     *   async ({ clientId, lastSync }) => syncEngine.pull(lastSync, clientId, user.id)
+     * );
+     *
+     * export const pushChanges = command(SyncOpsSchema, async (ops) => {
+     *   const result = await syncEngine.push(ops, user.id);
+     *   await syncStream.refresh(); // notify all live subscribers
+     *   return result;
+     * });
+     * ```
+     *
+     * Example client (`db.ts`):
+     * ```ts
+     * import { syncStream, pushChanges } from '$lib/sync.remote';
+     * export const engine = new SyncEngine({
+     *   local: { adapter, db: null },
+     *   remote: {
+     *     push: pushChanges,
+     *     live: { syncStream: (input) => syncStream(input) },
+     *   },
+     * });
+     * ```
+     */
+    live?: {
+      syncStream: (input: {
+        clientId: string;
+        lastSync: number;
+        tables?: string[];
+      }) => Promise<SyncOperation[]>;
+    };
   };
+
+  /**
+   * Base URL path for zero-config HTTP sync endpoints.
+   * Defaults to `'/api/sync'`.
+   *
+   * The library's `handle` hook (from `createServerSync`) serves:
+   * - `POST {endpoint}/push` — receive client operations
+   * - `GET  {endpoint}/pull` — send server changes to the client
+   * - `GET  {endpoint}/realtime` — SSE stream (when `realtime` is configured)
+   */
+  endpoint?: string;
 
   // Sync settings
   syncInterval?: number; // Auto-sync interval in ms (0 to disable)

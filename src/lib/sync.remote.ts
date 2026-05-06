@@ -2,18 +2,17 @@ import { query, command, getRequestEvent } from '$app/server';
 import * as v from 'valibot';
 import { syncEngine } from '$lib/server/sync'
 // import { getUser } from '$lib/server/auth'; // Your auth function
-function getUser(req) {
-  return { id: 'uswr1' }
+function getUser(req: Request) {
+  return { id: 'user1' }
 }
 
-
-// Validation schemas
+// Validation schema for sync operations
 const SyncOperationSchema = v.object({
   id: v.string(),
   table: v.string(),
   operation: v.picklist(['insert', 'update', 'delete']),
   data: v.any(),
-  timestamp: v.date(),
+  timestamp: v.number(),
   clientId: v.string(),
   version: v.number(),
   status: v.picklist(['pending', 'synced', 'error'])
@@ -21,81 +20,54 @@ const SyncOperationSchema = v.object({
 
 const SyncOperationsArraySchema = v.array(SyncOperationSchema);
 
+// ─── SINGLE LIVE QUERY ───────────────────────────────────────────────────────
+//
+// `syncStream` replaces BOTH `pullChanges` (periodic pull) and
+// `subscribeToSync` (realtime subscription) from the old three-function setup.
+//
+// • On the client, pass it to `remote.live.syncStream` in `SyncEngine`.
+//   The engine will call it for the initial data fetch and every subsequent
+//   periodic pull.
+//
+// • Because this is a `query.live`, calling `syncStream.refresh()` inside
+//   `pushChanges` automatically notifies all connected clients to re-fetch —
+//   no separate SSE stream management required.
+//
+export const syncStream = query(
+  v.object({
+    clientId: v.string(),
+    lastSync: v.number()
+  }),
+  async ({ lastSync, clientId }) => {
+    const { request } = getRequestEvent()
+    const user = getUser(request);
+    if (!user) {
+      throw new Error('Unauthorized');
+    }
 
-// PUSH CHANGES TO SERVER
+    return syncEngine.pull(lastSync, clientId, user.id);
+  }
+);
+
+// ─── PUSH COMMAND ────────────────────────────────────────────────────────────
+//
+// Push client operations to the server and refresh `syncStream` so that all
+// connected clients receive the latest changes automatically.
+//
 export const pushChanges = command(
   SyncOperationsArraySchema,
   async (operations) => {
     const { request } = getRequestEvent()
-    // Get authenticated user
-    const user = await getUser(request);
+    const user = getUser(request);
     if (!user) {
       throw new Error('Unauthorized');
     }
-    console.log(operations)
-    // Process the sync operations
+
     const result = await syncEngine.push(operations, user.id);
-    await pullChanges({ lastSync: 0, clientId: operations[0].clientId }).refresh()
+
+    // Invalidate the live query → all subscribers receive fresh operations
+    await syncStream.refresh();
+
     return result;
-  }
-);
-
-// PULL CHANGES FROM SERVER
-export const pullChanges = query(
-  v.object({
-    lastSync: v.number(),
-    clientId: v.string()
-  }),
-  async ({ lastSync, clientId }) => {
-    const { request } = getRequestEvent()
-    const user = await getUser(request);
-    if (!user) {
-      throw new Error('Unauthorized');
-    }
-
-    const operations = await syncEngine.pull(lastSync, clientId, user.id);
-    return operations;
-  }
-);
-
-
-// REALTIME SUBSCRIPTION (WebSocket/SSE)
-export const subscribeToSync = query(
-  v.object({
-    tables: v.array(v.string()),
-    clientId: v.string()
-  }),
-  async ({ tables, clientId }) => {
-    const { request } = getRequestEvent()
-    const user = await getUser(request);
-    if (!user) {
-      throw new Error('Unauthorized');
-    }
-
-    // Return a server-sent events stream or WebSocket connection
-    // This is handled by SvelteKit's streaming capabilities
-    return new ReadableStream({
-      async start(controller) {
-        const unsubscribe = await syncEngine.subscribeToChanges(
-          tables,
-          user.id,
-          (operations) => {
-            // Filter out operations from this client
-            const filtered = operations.filter(op => op.clientId !== clientId);
-            if (filtered.length > 0) {
-              controller.enqueue(
-                new TextEncoder().encode(JSON.stringify(filtered) + '\n')
-              );
-            }
-          }
-        );
-
-        // Cleanup on disconnect
-        request.signal.addEventListener('abort', () => {
-          unsubscribe();
-          controller.close();
-        });
-      }
-    });
   }
 );
