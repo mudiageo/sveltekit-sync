@@ -2,6 +2,9 @@
   import { onMount } from 'svelte';
   import { todosStore, syncEngine } from '$lib/db';
   import { browser } from '$app/environment';
+  import { useCursorTracking } from '$pkg'
+  
+  useCursorTracking()
 
   let newTodoText = $state('');
   let currentUser = $state({
